@@ -75,6 +75,9 @@ Une fois que vous avez configuré vos informations une première fois via le Con
 
 ---
 
+<img width="419" height="703" alt="image" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" />  <img width="316" height="700" alt="image" src="https://github.com/user-attachments/assets/2268cf3b-ff7b-4131-a49a-4ec43cd16164" />
+
+
 ## 📝 Configuration Requise
 
 - **Python 3.12** (pour le Bridge et le Launcher).

@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent-prog: #af99ef;
+  --color-accent-useful: #6d8be8;
+  --color-accent-junk: #00eeee;
+  --color-accent-trap: #ff7700;
+  --color-dark-bg: rgba(10, 10, 12, 0.85);
+}
+
+@layer base {
+  body {
+    @apply bg-transparent text-white antialiased overflow-hidden font-sans;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

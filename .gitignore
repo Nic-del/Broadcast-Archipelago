@@ -1,0 +1,9 @@
+node_modules/
+broadcast-app/node_modules/
+broadcast-app/dist/
+*.log
+broadcast_settings.json
+__pycache__/
+.vscode/
+.idea/
+.DS_Store

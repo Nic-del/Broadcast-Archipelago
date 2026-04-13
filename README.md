@@ -1,85 +1,68 @@
-# BroadCast Archipelago - Notification System
+# BroadCast Archipelago - Notification System 🎭
 
-Ce système est un outil de notification premium conçu pour les sessions **Archipelago Multiworld**. Il permet d'afficher en temps réel les objets envoyés et reçus durant votre partie avec une esthétique soignée et moderne.
-
-## 🛠️ Comment ça marche ?
-
-Le système repose sur trois composants principaux qui travaillent ensemble :
-
-### 1. Le Control Center (`BroadCast-Archipelago.pyw`)
-
-C'est le "cerveau" visuel. Cette interface vous permet de :
-
-- Configurer vos informations de connexion (Serveur, Slot, Mot de passe).
-- Choisir sur quel écran afficher les notifications.
-- Ajuster la taille et la position exacte de la fenêtre de broadcast.
-- Choisir le mode de filtrage (voir tous les objets ou seulement les vôtres).
-
-### 2. Le Bridge (`broadcast/bridge.py`)
-
-C'est un composant invisible qui tourne en arrière-plan :
-
-- Il maintient la connexion avec le serveur **Archipelago**.
-- Il traduit les messages techniques du serveur en notifications lisibles (ex: "Link a envoyé une Épée Master à Zelda").
-- Il distribue ces informations à la partie visuelle via un serveur WebSocket local.
-
-### 3. L'App de Broadcast (`broadcast-app`)
-
-C'est la couche visuelle (développée en Vite + Electron) :
-
-- Elle reçoit les données du Bridge.
-- Elle affiche des notifications élégantes avec des animations fluides.
-- Elle est optimisée pour être transparente et s'intégrer parfaitement par-dessus votre jeu ou dans **OBS**.
+[English version below](#english) | [Version Française](#français)
 
 ---
 
-## ⚙️ Installation
+<div id="english">
 
-Avant de lancer le système pour la première fois, vous devez installer les dépendances nécessaires. Des scripts automatisés sont fournis pour vous faciliter la tâche :
+## **What is BroadCast Archipelago?** 💡
 
-1.  **`INSTALLATION.bat`** : Lance l'installation complète. C'est le script à utiliser pour une première installation.
-2.  **`INSTALL_PYTHON_ONLY.bat`** : Installe uniquement les bibliothèques Python (`websockets`, `psutil`). _Nécessite Python 3.12 installé._
-3.  **`INSTALL_NODE_ONLY.bat`** : Installe uniquement les modules Node.js pour l'interface visuelle. _Nécessite Node.js installé._
+The main goal of this tool is to provide **high-quality visual feedback** for items you receive or send during your Multiworld games. 
 
----
+Many games in the Archipelago world (like *The Legend of Zelda: Wind Waker*) don't always show clear messages or notifications when another player sends you an item. You often find yourself checking your inventory constantly or trying to scroll through a messy chat window.
 
-## 🚀 Utilisation
+**BroadCast Archipelago fixes that.** It gives you a clean, dedicated UI that tells you exactly:
+* ✨ **What** you got
+* 👤 **Who** sent it to you
+* 💎 The **importance** of the item (Progression, Useful, Junk, Trap...)
 
-### Mode Standard (Interface de Contrôle)
+Think of it like the alerts Twitch streamers use for new followers, but **specifically designed for Archipelago!**
 
-1.  **Lancement** : Exécutez le fichier `BroadCast-Archipelago.pyw`.
-2.  **Configuration** :
-    - Entrez l'adresse du serveur (ex: `archipelago.gg:38210`).
-    - Entrez votre nom de Slot (joueur).
-    - Réglez la position de la fenêtre (prévisualisée sur le petit rectangle noir).
-3.  **Démarrage** : Cliquez sur **START SYSTEM**.
-    - Les processus nécessaires vont se lancer automatiquement.
-    - Une fenêtre de broadcast apparaîtra sur l'écran sélectionné.
+### **Key Features:**
+* 🎨 **Premium Aesthetics**: Smooth animations and a modern design.
+* 🚀 **Game Agnostic**: Supports any game in the Archipelago world.
+* 📺 **Stream-Ready**: Works as a transparent overlay or an OBS Browser Source.
+* 🤖 **Headless Mode**: Set it up once, then launch it with one click.
 
-### Mode Rapide (Headless)
-
-Une fois que vous avez configuré vos informations une première fois via le Control Center, vous n'êtes plus obligé de passer par lui.
-
-- Vous pouvez lancer directement le fichier **`Start_CLI.bat`**.
-- Cela lancera le système en arrière-plan en utilisant vos derniers réglages sauvegardés dans `broadcast_settings.json`.
-- C'est idéal pour un démarrage instantané une fois que tout est bien réglé.
+### **Getting Started:**
+1.  **Install dependencies**: Run `INSTALLATION.bat` (requires Python 3.12 and Node.js).
+2.  **Configuration**: Run `BroadCast-Archipelago.pyw`, enter your server/slot info, and adjust the overlay position.
+3.  **Go!**: Click **START SYSTEM**.
 
 ---
 
-## 🎭 Modes de Tracking
+</div>
 
-- **All Items** : Affiche absolument tout ce qui se passe dans le Multiworld (Idéal pour les commentateurs ou le chaos).
-- **My Items** : Affiche uniquement les objets que vous envoyez ou que vous recevez.
-- **OBS Mode** : Optimisé pour les streamers. Vous pouvez intégrer l'URL suivante dans OBS comme "Source Navigateur" pour un rendu professionnel :
-  `http://localhost:5173/?mode=obs`
+<div id="français">
+
+## **C'est quoi BroadCast Archipelago ?** (Version Française)
+
+Le but principal de cet outil est de vous offrir un **meilleur affichage visuel** pour les objets que vous recevez ou envoyez durant vos parties Multiworld.
+
+De nombreux jeux dans Archipelago (comme *The Wind Waker*) n'affichent pas toujours de message clair ou de notification quand un autre joueur vous envoie un objet. On se retrouve souvent à vérifier son inventaire ou à scruter un chat illisible.
+
+**BroadCast Archipelago corrige ça.** Il vous donne une interface claire et dédiée qui vous dit :
+* ✨ **Quoi** vous avez reçu.
+* 👤 **Qui** vous l'a envoyé.
+* 💎 L'**importance** de l'objet (Progression, Utile, Piège...).
+
+C'est comme les alertes Twitch pour les nouveaux abonnés, mais **spécifiquement conçu pour Archipelago !**
+
+### **Fonctionnalités :**
+* 🎨 **Esthétique Premium** : Animations fluides et design moderne.
+* 🚀 **Multi-Jeux** : Supporte n'importe quel jeu de l'écosystème Archipelago.
+* 📺 **Stream-Ready** : Fonctionne en overlay transparent ou en source navigateur OBS.
+* 🤖 **Mode Rapide** : Configurez-le une fois, puis lancez-le en un clic via `Start_CLI.bat`.
 
 ---
 
-<img width="419" height="703" alt="image" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" />  <img width="316" height="700" alt="image" src="https://github.com/user-attachments/assets/2268cf3b-ff7b-4131-a49a-4ec43cd16164" />
+</div>
 
+<img width="419" height="703" alt="image" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" /> <img width="316" height="700" alt="image" src="https://github.com/user-attachments/assets/2268cf3b-ff7b-4131-a49a-4ec43cd16164" />
 
-## 📝 Configuration Requise
+## 📝 Requirements / Configuration Requise
 
-- **Python 3.12** (pour le Bridge et le Launcher).
-- **Node.js** (pour le moteur de rendu visuel).
-- Les dépendances installées via les scripts `.bat` fournis dans le dossier.
+- **Python 3.12** (Needed for the Bridge and Launcher).
+- **Node.js** (Needed for the visual rendering engine).
+- Dependencies installed via the provided `.bat` scripts.

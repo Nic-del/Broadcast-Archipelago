@@ -89,6 +89,6 @@ Once you have configured your information via the Control Center, you no longer 
 
 ## 📝 Requirements
 
-- **Python 3.12** (for the Bridge and Launcher).
-- **Node.js** (for the visual rendering engine).
+- **Python 3.12** (for the Bridge and Launcher): [Download here](https://www.python.org/downloads/release/python-31210/)
+- **Node.js** (for the visual rendering engine): [Download here](https://nodejs.org/en)
 - Dependencies installed via the provided `.bat` scripts.

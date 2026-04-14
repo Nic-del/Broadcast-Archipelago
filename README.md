@@ -20,6 +20,7 @@ This is the visual "brain". This interface allows you to:
 - **Live Preview**: Drag the purple rectangle on the mini-map to position your overlay precisely.
 - **Connection**: Configure your connection information (Server, Slot, Password).
 - **Control**: Select which screen to use and trigger test notifications.
+- **Filtering**: Choose the filtering mode (see all items or only yours).
 - **Monitoring**: See the status of the local bridge and Electron app.
 
 ### 2. The Bridge (`broadcast/bridge.py`)
@@ -69,7 +70,8 @@ Before launching the system for the first time, you must install the necessary d
 Once you have configured your information via the Control Center, you no longer need to use it.
 
 - You can directly launch the file **`Start_CLI.bat`**.
-- This will launch the system in the background using your last saved settings.
+- This will launch the system in the background using your last saved settings from **`broadcast_settings.json`**.
+- This is ideal for an instant start once everything is properly set up.
 
 ---
 

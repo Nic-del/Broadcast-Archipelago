@@ -10,7 +10,7 @@ import logging
 logging.getLogger('websockets.server').setLevel(logging.CRITICAL)
 
 # --- Archipelago Constants ---
-AP_VERSION = {"major": 0, "minor": 6, "build": 6, "class": "Version"}
+AP_VERSION = {"major": 0, "minor": 6, "build": 7, "class": "Version"}
 
 # OPTIMIZATION: Set low priority for this process to not impact the game
 import platform
@@ -66,20 +66,31 @@ class ArchipelagoClient:
         self.available_games = []
         self.current_game_index = 0
         self.my_alias = slot # Will be updated on connect
+        self.is_connected = False
 
     async def connect(self):
         protocols = [f"wss://{self.raw_server}", f"ws://{self.raw_server}"]
+        success = False
         for url in protocols:
+            if success: break
             print(f"Connecting to {url}...", flush=True)
             try:
-                async with websockets.connect(url, origin="http://localhost", ping_interval=20, ping_timeout=20) as ws:
+                # Archipelago DataPackages can be very large (>1MB), so we increase the max_size limit
+                async with websockets.connect(url, origin="http://localhost", ping_interval=20, ping_timeout=20, max_size=None) as ws:
                     print(f"Connected to {url}!", flush=True)
                     self.ws = ws
+                    self.is_connected = True
                     await self.listen()
+                    success = True # If listen returns without exception, we consider it a successful session
             except Exception as e:
-                # Silently catch and retry connection
-                pass
+                print(f"Connection error or session ended: {e}", flush=True)
+                self.is_connected = False
+                # If we were already connected and it failed, don't try the other protocol immediately
+                if success: break
+        
+        print("Reconnecting in 5 seconds...", flush=True)
         await asyncio.sleep(5)
+        self.current_game_index = 0 # Reset game trial on full reconnection
         await self.connect()
 
     async def identify(self, game_name=""):
@@ -105,9 +116,14 @@ class ArchipelagoClient:
                         mapping = {str(v): k for k, v in game_data.get("item_name_to_id", {}).items()}
                         self.item_maps[game] = mapping
                 elif cmd == "ConnectionRefused":
+                    print(f"Connection refused: {packet.get('errors')}", flush=True)
                     if "InvalidGame" in packet.get("errors", []) and self.current_game_index < len(self.available_games) - 1:
                         self.current_game_index += 1
                         await self.identify(self.available_games[self.current_game_index])
+                    else:
+                        # Other errors (InvalidPassword, IncompatibleVersion, etc)
+                        # We might want to stop or notify the UI
+                        await broadcast_to_ui({"type": "notification", "event": "error", "text": f"Connection Refused: {', '.join(packet.get('errors', []))}"})
                 elif cmd == "Connected":
                     print(f"SUCCESS! Connected as {self.slot}", flush=True)
                     # Find our own alias (the name we have on the server)

@@ -2,6 +2,13 @@
 
 This system is a premium notification tool designed for **Archipelago Multiworld** sessions. It displays real-time sent and received items during your game with a polished and modern aesthetic.
 
+## ✨ New Features
+
+- 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
+- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window. It automatically jumps to the other side of the window if you push it against a screen edge to always stay visible.
+- 🧪 **Integrated Testing Suite**: Use the "SEND TEST MESSAGES" button in the Control Center or the "TEST" button in the history panel to verify your layout instantly.
+- 🤖 **Smart Layout Engine**: Notifications automatically offset themselves to avoid overlapping with the control button.
+
 ## 🛠️ How it works?
 
 The system relies on three main components working together:
@@ -10,10 +17,10 @@ The system relies on three main components working together:
 
 This is the visual "brain". This interface allows you to:
 
-- Configure your connection information (Server, Slot, Password).
-- Choose which screen to display notifications on.
-- Adjust the exact size and position of the broadcast window.
-- Choose the filtering mode (see all items or only yours).
+- **Live Preview**: Drag the purple rectangle on the mini-map to position your overlay precisely.
+- **Connection**: Configure your connection information (Server, Slot, Password).
+- **Control**: Select which screen to use and trigger test notifications.
+- **Monitoring**: See the status of the local bridge and Electron app.
 
 ### 2. The Bridge (`broadcast/bridge.py`)
 
@@ -22,14 +29,15 @@ An invisible component running in the background:
 - It maintains the connection with the **Archipelago** server.
 - It translates technical server messages into readable notifications (e.g., "Link sent a Master Sword to Zelda").
 - It distributes this information to the visual part via a local WebSocket server.
+- It relays test triggers from the Control Center to all active displays.
 
 ### 3. The Broadcast App (`broadcast-app`)
 
 This is the visual layer (developed with Vite + Electron):
 
-- It receives data from the Bridge.
-- It displays elegant notifications with smooth animations.
-- It is optimized to be transparent and integrate perfectly over your game or in **OBS**.
+- **Premium UI**: Elegant notifications with smooth animations and glowing accents.
+- **Interaction**: Features a smart draggable handle that flips sides based on screen position.
+- **OBS Ready**: Fully optimized for transparency and window capture.
 
 ---
 
@@ -51,18 +59,17 @@ Before launching the system for the first time, you must install the necessary d
 2.  **Configuration**:
     - Enter the server address (e.g., `archipelago.gg:38210`).
     - Enter your Slot name (player).
-    - Adjust the window position (previewed on the small black rectangle).
+    - Adjust position by dragging the rectangle in the **SCREEN PREVIEW**.
 3.  **Start**: Click **START SYSTEM**.
     - The necessary processes will launch automatically.
-    - A broadcast window will appear on the selected screen.
+4.  **Reposition**: Once the overlay is open, you can also move it directly using the small circular "Grab" handle on the side of the window.
 
 ### Fast Mode (Headless)
 
 Once you have configured your information via the Control Center, you no longer need to use it.
 
 - You can directly launch the file **`Start_CLI.bat`**.
-- This will launch the system in the background using your last saved settings from `broadcast_settings.json`.
-- This is ideal for an instant start once everything is properly set up.
+- This will launch the system in the background using your last saved settings.
 
 ---
 
@@ -70,12 +77,10 @@ Once you have configured your information via the Control Center, you no longer 
 
 - **All Items**: Displays absolutely everything happening in the Multiworld (Ideal for commentators or chaos).
 - **My Items**: Displays only items you send or receive.
-- **OBS Mode**: Optimized for streamers. You can integrate the following URL into OBS as a "Browser Source" for a professional look:
+- **OBS Mode**: Optimized for streamers. Use the local URL in an OBS Browser Source:
   `http://localhost:5173/?mode=obs`
 
 ---
-
-<img width="419" height="703" alt="image" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" /> <img width="316" height="700" alt="image" src="https://github.com/user-attachments/assets/2268cf3b-ff7b-4131-a49a-4ec43cd16164" />
 
 ## 📝 Requirements
 

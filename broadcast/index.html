@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archipelago - Broadcast Window</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: rgba(10, 10, 12, 0.85);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --accent-emerald: #10b981;
+            --accent-prog: #af99ef;
+            --accent-useful: #6d8be8;
+            --accent-junk: #00eeee;
+            --accent-trap: #ff7700;
+            --accent-error: #ef4444;
+            --font-main: 'Inter', sans-serif;
+            --font-title: 'Outfit', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: transparent;
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: flex-end;
+            padding: 40px;
+        }
+
+        /* Ambient background for testing */
+        body.test-bg {
+            background: linear-gradient(45deg, #1a1a1a, #0a0a0a);
+        }
+
+        #notification-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .notification {
+            background: var(--bg-color);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px border var(--border-color);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-left: 4px solid var(--accent-emerald);
+            transform-origin: right center;
+            animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notification::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0.05), transparent);
+            pointer-events: none;
+        }
+
+        .notification.fade-out {
+            animation: slideOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideIn {
+            0% { opacity: 0; transform: translateX(100px) scale(0.9); }
+            100% { opacity: 1; transform: translateX(0) scale(1); }
+        }
+
+        @keyframes slideOut {
+            0% { opacity: 1; transform: translateX(0) scale(1); }
+            100% { opacity: 0; transform: translateX(100px) scale(0.9); }
+        }
+
+        .icon-container {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .icon-container img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+        }
+
+        .content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .message {
+            font-size: 18px;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+
+        .highlight {
+            font-weight: 700;
+            color: var(--accent-emerald);
+        }
+
+        .player-name {
+            color: var(--accent-useful);
+        }
+
+        /* Types */
+        .notification.prog { border-left-color: var(--accent-prog); }
+        .notification.useful { border-left-color: var(--accent-useful); }
+        .notification.junk { border-left-color: var(--accent-junk); }
+        .notification.trap { border-left-color: var(--accent-trap); }
+        .notification.error { border-left-color: var(--accent-error); }
+
+        .notification.prog .highlight { color: var(--accent-prog); }
+        .notification.useful .highlight { color: var(--accent-useful); }
+        .notification.junk .highlight { color: var(--accent-junk); }
+        .notification.trap .highlight { color: var(--accent-trap); }
+
+        /* Status Board */
+        #status-bar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 12px;
+            font-size: 10px;
+            font-family: monospace;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #444;
+            transition: background 0.3s;
+        }
+
+        .dot.active {
+            background: var(--accent-emerald);
+            box-shadow: 0 0 10px var(--accent-emerald);
+        }
+
+        /* Fullscreen Hint */
+        #hint {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.2);
+            transition: opacity 0.3s;
+        }
+        body:hover #hint { opacity: 1; }
+        body:not(:hover) #hint { opacity: 0; }
+
+    </style>
+</head>
+<body class="test-bg">
+    <div id="status-bar">
+        <div id="connection-dot" class="dot"></div>
+        <span id="status-text">Disconnected from Bridge</span>
+    </div>
+
+    <div id="hint">Press F11 for Fullscreen</div>
+
+    <div id="notification-container">
+        <!-- Notifications will appear here -->
+    </div>
+
+    <script>
+        const container = document.getElementById('notification-container');
+        const connectionDot = document.getElementById('connection-dot');
+        const statusText = document.getElementById('status-text');
+
+        // Socket logic
+        let socket = null;
+
+        function connect() {
+            socket = new WebSocket('ws://localhost:8080');
+
+            socket.onopen = () => {
+                connectionDot.classList.add('active');
+                statusText.innerText = 'Connected to Bridge';
+                console.log('Connected to ArchipelagoBroadcastBridge');
+                showNotification({
+                    type: 'normal',
+                    text: 'Broadcast Hub Connected'
+                });
+            };
+
+            socket.onclose = () => {
+                connectionDot.classList.remove('active');
+                statusText.innerText = 'Disconnected from Bridge';
+                setTimeout(connect, 2000);
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'notification') {
+                        showNotification(data);
+                    }
+                } catch (e) {
+                    console.error('Invalid message format', event.data);
+                }
+            };
+        }
+
+        function getClassificationClass(itemClass) {
+            switch(itemClass) {
+                case 0: return 'prog';
+                case 1: return 'useful';
+                case 2: return 'junk';
+                case 3: return 'trap';
+                default: return 'normal';
+            }
+        }
+
+        function showNotification(data) {
+            const notif = document.createElement('div');
+            notif.className = 'notification ' + (data.event === 'receive' || data.event === 'send' ? getClassificationClass(data.class) : (data.event === 'error' ? 'error' : 'normal'));
+            
+            let innerHTML = '';
+            
+            if (data.event === 'receive') {
+                innerHTML = `
+                    <div class="icon-container">
+                        <img src="https://archipelago.gg/static/static/img/ap-logo.png" alt="AP">
+                    </div>
+                    <div class="content">
+                        <div class="label">${data.from === data.to ? 'Item Found' : 'Incoming Item'}</div>
+                        <div class="message"><span class="player-name">${data.to}</span> got <span class="highlight">${data.item}</span> from <span class="player-name">${data.from}</span></div>
+                    </div>
+                `;
+            } else if (data.event === 'send') {
+                innerHTML = `
+                    <div class="icon-container">
+                        <img src="https://archipelago.gg/static/static/img/ap-logo.png" alt="AP">
+                    </div>
+                    <div class="content">
+                        <div class="label">Sent Item</div>
+                        <div class="message"><span class="player-name">${data.from}</span> sent <span class="highlight">${data.item}</span> to <span class="player-name">${data.to}</span></div>
+                    </div>
+                `;
+            } else {
+                innerHTML = `
+                    <div class="content">
+                        <div class="label">${data.event === 'error' ? 'System Error' : 'System Message'}</div>
+                        <div class="message">${data.text}</div>
+                    </div>
+                `;
+            }
+
+            notif.innerHTML = innerHTML;
+            container.appendChild(notif);
+
+            // Auto-remove after 10 seconds (matching mod duration)
+            setTimeout(() => {
+                notif.classList.add('fade-out');
+                setTimeout(() => {
+                    if (notif.parentNode === container) {
+                        container.removeChild(notif);
+                    }
+                }, 500);
+            }, 10000);
+        }
+
+        // Start connection
+        connect();
+
+        // Testing keyboard shortcut (Space)
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                showNotification({
+                    type: 'notification',
+                    event: 'receive',
+                    item: 'Fierce Deity Mask',
+                    from: 'Linksweld',
+                    class: 0
+                });
+            }
+        });
+    </script>
+</body>
+</html>

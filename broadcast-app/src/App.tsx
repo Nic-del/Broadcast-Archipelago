@@ -136,7 +136,7 @@ const App: React.FC = () => {
       socket.onopen = () => {
         if (!isMounted) return;
         setIsConnected(true);
-        console.log('Connected to MMBroadcastBridge');
+        console.log('Connected to Broadcast Bridge');
       };
 
       socket.onclose = () => {

@@ -10,7 +10,7 @@ import logging
 logging.getLogger('websockets.server').setLevel(logging.CRITICAL)
 
 # --- Archipelago Constants ---
-AP_VERSION = {"major": 0, "minor": 6, "build": 6, "class": "Version"}
+AP_VERSION = {"major": 0, "minor": 6, "build": 7, "class": "Version"}
 
 # OPTIMIZATION: Set low priority for this process to not impact the game
 import platform

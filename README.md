@@ -47,12 +47,14 @@ This is the visual layer (developed with Vite + Electron):
 Before launching the system for the first time, you must install the necessary dependencies. Automated scripts are provided to make this easy:
 
 1.  **`INSTALLATION.bat`**: Runs the full installation. This is the script to use for a first-time setup.
-2.  **`INSTALL_PYTHON_ONLY.bat`**: Installe only Python libraries (`websockets`, `psutil`). *Requires Python 3.12 installed.*
-3.  **`INSTALL_NODE_ONLY.bat`**: Installs only Node.js modules for the visual interface. *Requires Node.js installed.*
+2.  **`INSTALL_PYTHON_ONLY.bat`**: Installe only Python libraries (`websockets`, `psutil`). _Requires Python 3.12 installed._
+3.  **`INSTALL_NODE_ONLY.bat`**: Installs only Node.js modules for the visual interface. _Requires Node.js installed._
 
 ---
 
 ## 🚀 Usage
+
+s
 
 ### Standard Mode (Control Interface)
 
@@ -70,8 +72,7 @@ Before launching the system for the first time, you must install the necessary d
 Once you have configured your information via the Control Center, you no longer need to use it.
 
 - You can directly launch the file **`Start_CLI.bat`**.
-- This will launch the system in the background using your last saved settings from **`broadcast_settings.json`**.
-- This is ideal for an instant start once everything is properly set up.
+- This will launch the system in the background using your last saved settings.
 
 ---
 
@@ -83,6 +84,8 @@ Once you have configured your information via the Control Center, you no longer 
   `http://localhost:5173/?mode=obs`
 
 ---
+
+<img width="419" height="703" alt="image" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" /> <img width="316" height="700" alt="image" src="https://github.com/user-attachments/assets/2268cf3b-ff7b-4131-a49a-4ec43cd16164" />
 
 ## 📝 Requirements
 

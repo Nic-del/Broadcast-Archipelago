@@ -5,24 +5,23 @@ This system is a premium notification tool designed for **Archipelago Multiworld
 ## ✨ New Features & Updates
 
 ### 🚀 Release 1.0.3 (Latest)
-- ⚡ **Zero-Impact Performance**: Deep optimizations in the rendering engine (Electron) and the Bridge (Python) to ensure 0% impact on game FPS.
-- 🎨 **Smart Render Throttling**: The overlay now limits itself to 30 FPS and throttles resources when idle or hidden.
-- 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
-- 🔀 **Dynamic Multi-Slot Support**: Switch between multiple pre-configured Archipelago slots instantly from the history panel.
-- 🐧 **Linux Stability Fixes**: Resolved window snapping bugs and improved coordinate management for Desktop Managers.
-- 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
 
-### 🌟 Core Features
-- 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
-- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window.
-- 🧪 **Integrated Testing Suite**: Instant verification with the "TEST" button.
+- 🔄 **Dynamic Multi-Slot Support**: Track multiple players simultaneously (Format: `Slot1:Pass, Slot2:Pass`) and switch between them instantly from the history panel.
+- 🚀 **Performance Optimized**: Locked at 30 FPS with background throttling to minimize impact on your game's performance.
+- 🛡️ **Universal Linux Compatibility**: Pre-configured with `--no-sandbox` to work across all major distributions without permission hurdles.
+- 🖱️ **Enhanced Window Management**: Protection against automatic "snapping" to (0,0) coordinates on focus loss.
 
+## 🌟 Core Features
+
+- 🖥️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
+- 📍 **Smart Draggable Button**: A multi-purpose button to toggle history or move the window. It automatically jumps to the other side if pushed against a screen edge.
+- 🧪 **Integrated Testing Suite**: Instantly verify your layout with the "SEND TEST MESSAGES" or "TEST" buttons.
 
 ## 🛠️ How it works?
 
 The system relies on three main components working together:
 
-### 1. The Control Center (`BroadCast-Archipelago.pyw`)
+### 1. The Control Center (`BroadCast-Archipelago.py`)
 
 This is the visual "brain". This interface allows you to:
 
@@ -51,13 +50,10 @@ This is the visual layer (developed with Vite + Electron):
 
 ---
 
-## ⚙️ Installation
+Before launching the system for the first time, you must install the necessary dependencies:
 
-Before launching the system for the first time, you must install the necessary dependencies. Automated scripts are provided to make this easy:
-
-1.  **`INSTALLATION.bat`**: Runs the full installation. This is the script to use for a first-time setup.
-2.  **`INSTALL_PYTHON_ONLY.bat`**: Installe only Python libraries (`websockets`, `psutil`). _Requires Python 3.12 installed._
-3.  **`INSTALL_NODE_ONLY.bat`**: Installs only Node.js modules for the visual interface. _Requires Node.js installed._
+1.  **`INSTALLATION.sh`**: Runs the full installation. This is the script to use for a first-time setup.
+    _Note: Ensure `python3`, `node`, and `npm` are installed._
 
 ---
 
@@ -102,4 +98,4 @@ Once you have configured your information via the Control Center, you no longer 
 
 - **Python 3.12** (for the Bridge and Launcher): [Download here](https://www.python.org/downloads/release/python-31210/)
 - **Node.js** (for the visual rendering engine): [Download here](https://nodejs.org/en)
-- Dependencies installed via the provided `.bat` scripts.
+- Dependencies installed via the provided `.sh` script.

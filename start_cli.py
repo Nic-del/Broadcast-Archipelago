@@ -103,15 +103,21 @@ def main():
         
         if needs_vite:
             print("\n[0/3] Starting Vite Dev Server (for OBS/Background) on port 5173...")
-            # We use shell=True for npx on Windows
-            procs.append(subprocess.Popen(["cmd", "/c", "npx vite --no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+            # Detect platform for command format
+            if os.name == 'nt':
+                procs.append(subprocess.Popen(["cmd", "/c", "npx vite --no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+            else:
+                procs.append(subprocess.Popen(["npx", "vite", "--no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app")))
 
         # 1. Check/Build Frontend if Overlay is enabled
         if settings.get("enable_overlay"):
             print("[1/3] Checking Frontend Build...")
             if not os.path.exists(dist_path) or not os.path.exists(os.path.join(dist_path, "index.html")):
                 print("      Building Frontend for the first time... (This may take a minute)")
-                subprocess.run(["cmd", "/c", "npm run build"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True)
+                if os.name == 'nt':
+                    subprocess.run(["cmd", "/c", "npm run build"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True)
+                else:
+                    subprocess.run(["npm", "run", "build"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"))
                 print("      Finished building Frontend!")
         
         # 2. Start Bridge
@@ -135,7 +141,10 @@ def main():
             time.sleep(1) # Wait a bit for bridge
             
             print("\r[3/3] Starting Electron Overlay UI...        ")
-            procs.append(subprocess.Popen(["cmd", "/c", "npm run overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+            if os.name == 'nt':
+                procs.append(subprocess.Popen(["cmd", "/c", "npm run overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+            else:
+                procs.append(subprocess.Popen(["npm", "run", "overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app")))
         else:
             print("[3/3] Electron Overlay disabled in settings. Skipping.")
         
@@ -144,11 +153,11 @@ def main():
         
         # Keep main thread alive
         while True:
-            # Check if bridge is still running
+            # Check if processes are still running
             if procs:
                 for p in procs:
                     if p.poll() is not None and p.poll() != 0:
-                        print(f"\n[!] A background process exited unexpectedly (Code: {p.poll()})")
+                         pass # Silent check
             time.sleep(2)
             
     except KeyboardInterrupt:
@@ -156,10 +165,18 @@ def main():
     finally:
         for p in procs:
             try:
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
-            except: pass
+                if os.name == 'nt':
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+                else:
+                    # Linux cleanup: kill process group
+                    import signal
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+            except: 
+                try: p.terminate()
+                except: pass
         
         print("Cleaned up background processes.")
+
 
 if __name__ == "__main__":
     main()

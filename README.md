@@ -66,7 +66,7 @@ Before launching the system for the first time, you must install the necessary d
 ### Standard Mode (Control Interface)
 
 
-1.  **Launch**: Execute the file `BroadCast-Archipelago.pyw`.
+1.  **Launch**: Execute the file `python3 BroadCast-Archipelago.py`.
 2.  **Configuration**:
     - Enter the server address (e.g., `archipelago.gg:38210`).
     - Enter your Slot name (player).
@@ -81,7 +81,8 @@ Before launching the system for the first time, you must install the necessary d
 
 Once you have configured your information via the Control Center, you no longer need to use it.
 
-- You can directly launch the file **`Start_CLI.bat`**.
+- You can directly launch the file **`python3 start_cli.py`**.
+
 - This will launch the system in the background using your last saved settings.
 
 ---

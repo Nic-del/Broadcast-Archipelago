@@ -5,15 +5,18 @@ import subprocess
 import json
 import os
 import sys
-import ctypes
-from ctypes import wintypes
+import platform
+import psutil
 
 # Settings file path
 SETTINGS_FILE = "broadcast_settings.json"
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=4)
+    try:
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(settings, f, indent=4)
+    except Exception as e:
+        print(f"Error saving settings: {e}")
 
 def load_settings():
     defaults = {
@@ -26,6 +29,9 @@ def load_settings():
         try:
             with open(SETTINGS_FILE, "r") as f:
                 data = json.load(f)
+                # Legacy compatibility: if 'mode' exists but not 'sync_mode', use 'mode'
+                if "mode" in data and "sync_mode" not in data:
+                    data["sync_mode"] = data["mode"]
                 # Ensure all default keys exist
                 for k, v in defaults.items():
                     if k not in data: data[k] = v
@@ -35,38 +41,38 @@ def load_settings():
 
 def get_monitors():
     monitors = []
-    def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
-        rect = lprcMonitor.contents
-        monitors.append({
-            'x': rect.left,
-            'y': rect.top,
-            'width': rect.right - rect.left,
-            'height': rect.bottom - rect.top
-        })
-        return True
-    MonitorEnumProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
-    ctypes.windll.user32.EnumDisplayMonitors(None, None, MonitorEnumProc(callback), 0)
-    return monitors
-
+    try:
+        from screeninfo import get_monitors as sm
+        for m in sm():
+            monitors.append({
+                'x': m.x,
+                'y': m.y,
+                'width': m.width,
+                'height': m.height
+            })
+    except Exception as e:
+        print(f"Error using screeninfo: {e}")
+        # Basic fallback for primary screen if screeninfo fails
+        monitors = [{'x': 0, 'y': 0, 'width': 1920, 'height': 1080}]
+    
     return monitors
 
 def kill_port(port):
-    """Forcefully kill any process using a specific TCP port."""
+    """Forcefully kill any process using a specific TCP port on Linux/Unix."""
     try:
-        import subprocess
-        # Find PIDs using the port
-        output = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True, creationflags=0x08000000).decode()
-        pids = set()
-        for line in output.strip().split('\n'):
-            parts = line.split()
-            if parts:
-                pids.add(parts[-1])
-        for pid in pids:
-            if pid != "0": # Avoid killing system
-                subprocess.run(['taskkill', '/F', '/T', '/PID', pid], capture_output=True, creationflags=0x08000000)
-                print(f"Killed process {pid} using port {port}")
+        # Using lsof to find PID
+        cmd = f"lsof -t -i:{port}"
+        pid = subprocess.check_output(cmd, shell=True).decode().strip()
+        if pid:
+            for p in pid.split('\n'):
+                if int(p) != os.getpid():
+                    print(f"Killing process {p} using port {port}")
+                    subprocess.run(['kill', '-9', p], capture_output=True)
     except:
-        pass
+        # Fallback to fuser
+        try:
+            subprocess.run(['fuser', '-k', f'{port}/tcp'], capture_output=True)
+        except: pass
 
 class BroadcastLauncherApp:
     def create_dim_field(self, parent, label, val, row, col):
@@ -81,8 +87,8 @@ class BroadcastLauncherApp:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("BroadCast Archipelago - Control Center")
-        self.root.geometry("850x640") # Wider but shorter for two columns
+        self.root.title("BroadCast Archipelago - Control Center (Linux)")
+        self.root.geometry("850x640")
         self.root.resizable(False, False)
         self.root.configure(bg="#0d0d0f")
         
@@ -112,7 +118,7 @@ class BroadcastLauncherApp:
         # --- HEADER ---
         header = tk.Frame(root, bg="#121214", height=60)
         header.pack(fill="x", side="top")
-        tk.Label(header, text="BROADCAST CENTER", bg="#121214", fg="#af99ef", font=("Segoe UI", 14, "bold")).pack(pady=15)
+        tk.Label(header, text="BROADCAST CENTER (LINUX)", bg="#121214", fg="#af99ef", font=("Segoe UI", 14, "bold")).pack(pady=15)
 
         # --- TWO COLUMN CONTAINER ---
         content_frame = tk.Frame(root, bg="#0d0d0f", padx=20, pady=10)
@@ -145,20 +151,20 @@ class BroadcastLauncherApp:
         self.watched_entry = create_entry(self.settings.get("multi_slots", ""))
         self.watched_entry.pack(pady=(0, 10), fill="x", ipady=5)
 
-        # Sync Modes (Separated for Overlay and OBS)
+        # Sync Modes
         sync_container = tk.Frame(left_pane, bg="#0d0d0f"); sync_container.pack(fill="x", pady=(0, 10))
         
         # Overlay Mode
         ov_f = tk.Frame(sync_container, bg="#0d0d0f"); ov_f.pack(side="left", fill="x", expand=True)
         create_label("Overlay Sync", ov_f).pack(anchor="w")
-        self.sync_var = tk.StringVar(value=self.settings.get("sync_mode", "personal")) # Desktop default
+        self.sync_var = tk.StringVar(value=self.settings.get("sync_mode", "personal"))
         tk.Radiobutton(ov_f, text="Personal", variable=self.sync_var, value="personal", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
         tk.Radiobutton(ov_f, text="Global", variable=self.sync_var, value="all", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
 
         # OBS Mode
         obs_f = tk.Frame(sync_container, bg="#0d0d0f"); obs_f.pack(side="right", fill="x", expand=True)
         create_label("OBS Sync", obs_f).pack(anchor="w")
-        self.obs_sync_var = tk.StringVar(value=self.settings.get("obs_sync_mode", "all")) # OBS default
+        self.obs_sync_var = tk.StringVar(value=self.settings.get("obs_sync_mode", "all"))
         tk.Radiobutton(obs_f, text="Personal", variable=self.obs_sync_var, value="personal", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
         tk.Radiobutton(obs_f, text="Global", variable=self.obs_sync_var, value="all", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
 
@@ -196,8 +202,6 @@ class BroadcastLauncherApp:
         self.start_btn = tk.Button(footer, textvariable=self.btn_text, command=self.toggle_system, bg="#af99ef", fg="#121214", font=("Segoe UI", 11, "bold"), width=30, border=0, cursor="hand2")
         self.start_btn.pack(pady=15)
 
-        self.update_preview()
-
         tool_frame = tk.Frame(root, bg="#0d0d0f"); tool_frame.pack(side="bottom", fill="x", pady=5)
         tk.Button(tool_frame, text="TEST MESSAGES", command=self.trigger_test_fill, bg="#0d0d0f", fg="#55ff55", font=("Segoe UI", 8), border=0, cursor="hand2").pack(side="left", padx=20)
         tk.Button(tool_frame, text="VIEW LOGS", command=self.open_logs_folder, bg="#0d0d0f", fg="#6d8be8", font=("Segoe UI", 8), border=0, cursor="hand2").pack(side="left")
@@ -206,29 +210,24 @@ class BroadcastLauncherApp:
 
         self.update_preview()
 
-    def get_error_message(self, hex_code, p_name):
-        # 0xc0000142 is 3221225794 unsigned, or -1073741502 signed
-        msgs = {
-            "3221225794": "DLL Init Failed. Try restarting your PC or checking and installing 'Visual C++ Redistributable'.",
-            "3221225781": "Missing System DLL. Ensure you have the latest Windows Updates and C++ Runtimes.",
-            "1": "Script Error. This usually means 'node_modules' are missing. Try running INSTALLATION.bat.",
-            "9009": f"Command not found. Is {'Node.js' if 'Vite' in p_name or 'Overlay' in p_name else 'Python'} installed and in PATH?",
-            "3": "Path not found. The app couldn't find the 'broadcast-app' folder.",
-            "127": "Command not found (Linux/Unix).",
-            "-1073741502": "DLL Init Failed. Try restarting your PC or checking and installing 'Visual C++ Redistributable'."
-        }
-        return msgs.get(str(hex_code), "Unknown error. Check logs or contact support.")
-
     def open_logs_folder(self):
-        os.startfile(os.path.abspath("logs"))
+        try:
+            path = os.path.abspath("logs")
+            if platform.system() == "Windows":
+                 os.startfile(path)
+            elif platform.system() == "Darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except: pass
 
     def show_troubleshooting(self):
-        msg = "--- Common Fixes ---\n\n"
-        msg += "1. Run 'INSTALLATION.bat' to ensure all libraries are present.\n"
+        msg = "--- Linux Common Fixes ---\n\n"
+        msg += "1. Run './INSTALLATION.sh' to ensure all libraries are present.\n"
         msg += "2. Ensure Node.js (v20+) and Python (3.12) are installed.\n"
-        msg += "3. Don't move the app files out of their folders.\n"
-        msg += "4. Check if an antivirus is blocking 'electron.exe'.\n"
-        msg += "5. If port 8089 is used by another app, the bridge will crash."
+        msg += "3. For notifications to work, ensure 'python3' is in your PATH.\n"
+        msg += "4. If UI doesn't appear, check logs for Electron/Node errors.\n"
+        msg += "5. Port 8089 is used for communication. Ensure it is free."
         messagebox.showinfo("Diagnostic Tool", msg)
 
     def on_monitor_change(self, event=None):
@@ -239,7 +238,6 @@ class BroadcastLauncherApp:
         self.screen_offset_x = m['x']
         self.screen_offset_y = m['y']
         
-        # Automatically move the coordinates to the new monitor (bottom right corner)
         try:
             w = int(self.win_w.get())
             h = int(self.win_h.get())
@@ -252,7 +250,6 @@ class BroadcastLauncherApp:
             self.win_y.insert(0, str(new_y))
         except: pass
 
-        # Update canvas aspect ratio
         self.canvas_h = (self.canvas_w * self.screen_h) // self.screen_w
         self.preview_canvas.config(height=self.canvas_h)
         self.update_preview()
@@ -268,8 +265,6 @@ class BroadcastLauncherApp:
     def on_preview_drag(self, event):
         dx = event.x - self.drag_start_x
         dy = event.y - self.drag_start_y
-        
-        # Scale back to screen coordinates
         scale_x = self.screen_w / self.canvas_w
         scale_y = self.screen_h / self.canvas_h
         
@@ -279,14 +274,12 @@ class BroadcastLauncherApp:
             cur_x = int(self.win_x.get())
             cur_y = int(self.win_y.get())
             
-            # Absolute default positions if -1
             if cur_x == -1: cur_x = self.screen_offset_x + self.screen_w - w - 20
             if cur_y == -1: cur_y = self.screen_offset_y + self.screen_h - h - 20
             
             new_x = cur_x + int(dx * scale_x)
             new_y = cur_y + int(dy * scale_y)
             
-            # Snap to pixels
             self.win_x.delete(0, tk.END)
             self.win_x.insert(0, str(new_x))
             self.win_y.delete(0, tk.END)
@@ -304,23 +297,15 @@ class BroadcastLauncherApp:
             x = int(self.win_x.get())
             y = int(self.win_y.get())
 
-            # Position logic for preview
-            if x == -1: 
-                # Centered default if -1 (standard Archipelago logic or bottom-right)
-                calc_x = self.screen_offset_x + self.screen_w - w - 20
-            else:
-                calc_x = x
+            if x == -1: calc_x = self.screen_offset_x + self.screen_w - w - 20
+            else: calc_x = x
                 
-            if y == -1: 
-                calc_y = self.screen_offset_y + self.screen_h - h - 20
-            else:
-                calc_y = y
+            if y == -1: calc_y = self.screen_offset_y + self.screen_h - h - 20
+            else: calc_y = y
  
-            # Positions in preview are relative to the selected monitor's origin
             rel_x = calc_x - self.screen_offset_x
             rel_y = calc_y - self.screen_offset_y
 
-            # Scale to canvas
             scale_x = self.canvas_w / self.screen_w
             scale_y = self.canvas_h / self.screen_h
  
@@ -330,13 +315,10 @@ class BroadcastLauncherApp:
             pv_h = h * scale_y
 
             self.preview_canvas.delete("all")
-            
-            # Draw warning border if out of bounds (relative to this screen)
             color = "#af99ef"
             if rel_x < 0 or rel_y < 0 or (rel_x + w) > self.screen_w or (rel_y + h) > self.screen_h:
-                color = "#ff5555" # Red warning
+                color = "#ff5555"
             
-            # Grid indicator
             for i in range(0, self.canvas_w, 20):
                 self.preview_canvas.create_line(i, 0, i, self.canvas_h, fill="#222222")
             for i in range(0, self.canvas_h, 20):
@@ -345,15 +327,12 @@ class BroadcastLauncherApp:
             self.preview_canvas.create_rectangle(pv_x, pv_y, pv_x + pv_w, pv_y + pv_h, fill=color, outline="white", stipple="gray50")
             self.preview_canvas.create_text(self.canvas_w/2, self.canvas_h/2, text=f"{self.screen_w}x{self.screen_h}", fill="#444444", font=("Segoe UI", 8))
             
-        except Exception as e:
-            print(f"Preview error: {e}")
-            pass
+        except Exception as e: pass
 
     def trigger_clear_history(self):
         if not self.is_running:
-            messagebox.showinfo("Info", "System must be running to clear history on all pages.")
+            messagebox.showinfo("Info", "System must be running to clear history.")
             return
-        
         def send_clear_cmd():
             try:
                 import asyncio
@@ -363,15 +342,13 @@ class BroadcastLauncherApp:
                         await ws.send(json.dumps({"type": "clear_history"}))
                 asyncio.run(send())
             except: pass
-            
         threading.Thread(target=send_clear_cmd, daemon=True).start()
-        self.status_label.config(text="Status: History Cleared Everywhere!", fg="#ff5555")
+        self.status_label.config(text="Status: History Cleared!", fg="#ff5555")
 
     def trigger_test_fill(self):
         if not self.is_running:
             messagebox.showinfo("Info", "System must be running to send test messages.")
             return
-        
         def send_test_cmd():
             try:
                 import asyncio
@@ -381,7 +358,6 @@ class BroadcastLauncherApp:
                         await ws.send(json.dumps({"type": "test_fill"}))
                 asyncio.run(send())
             except: pass
-            
         threading.Thread(target=send_test_cmd, daemon=True).start()
         self.status_label.config(text="Status: Test Messages Sent!", fg="#55ff55")
 
@@ -391,7 +367,6 @@ class BroadcastLauncherApp:
 
     def start_system(self):
         try:
-            # Get common settings
             self.settings.update({
                 "server": self.server_entry.get(), 
                 "slot": self.slot_entry.get(),
@@ -403,8 +378,6 @@ class BroadcastLauncherApp:
                 "enable_obs": self.use_obs.get(),
                 "display_index": self.monitor_select.current()
             })
-            
-            # Dimensions only mandatory if Overlay is enabled
             if self.use_overlay.get():
                 self.settings.update({
                     "win_w": int(self.win_w.get() or 400),
@@ -413,7 +386,7 @@ class BroadcastLauncherApp:
                     "win_y": int(self.win_y.get() or 0)
                 })
         except ValueError:
-            messagebox.showerror("Error", "Window dimensions (W, H, X, Y) must be numbers.")
+            messagebox.showerror("Error", "Window dimensions must be numbers.")
             return
         except Exception as e:
             messagebox.showerror("Error", f"Configuration error: {e}")
@@ -424,76 +397,50 @@ class BroadcastLauncherApp:
             messagebox.showerror("Error", "Server and Slot are mandatory.")
             return
 
-        # NEW: Force cleanup of any previous session leftovers and free ports
         self.stop_system() 
         self.status_label.config(text="Status: Cleaning up...", fg="#ffaa00")
         self.root.update()
         
-        # Force delete dist folder to ensure we use latest dev code
-        try:
-            import shutil
-            dist_to_clean = os.path.join("broadcast-app", "dist")
-            if os.path.exists(dist_to_clean):
-                shutil.rmtree(dist_to_clean)
-        except: pass
-
         import time
         time.sleep(1) 
         
-        kill_port(8089) # Bridge Port (Always needed)
-        
-        # Free Vite port if any web feature is needed
+        kill_port(8089)
         if self.use_obs.get() or self.use_overlay.get():
             kill_port(5173) 
 
         self.is_running = True
         self.btn_text.set("STOP SYSTEM")
-        if hasattr(self, 'start_btn'): self.start_btn.configure(bg="#ff5555", fg="white")
+        self.start_btn.configure(bg="#ff5555", fg="white")
         self.status_label.config(text="Status: Launching...", fg="#00eeee")
         threading.Thread(target=self.launch_background_tasks, daemon=True).start()
 
     def launch_background_tasks(self):
-        # Determine best python command
-        py_cmd = "py -3.12"
-        try:
-            subprocess.run(["py", "-3.12", "--version"], capture_output=True, check=True)
-        except:
-            py_cmd = "python" # Fallback
+        # On Linux, use python3
+        py_cmd = "python3"
             
-        # Helpers for logging
         def spawn_with_log(cmd, name, cwd=None):
             log_path = f"logs/{name}.log"
             f = open(log_path, "w", encoding="utf-8")
             self.log_files.append(f)
-            # FORCE disable colors for cleaner logs in text files
             env = os.environ.copy()
             env["FORCE_COLOR"] = "0"
             env["NO_COLOR"] = "1"
-            env["TERM"] = "dumb"
-            # 0x08000000 is CREATE_NO_WINDOW on Windows
-            return subprocess.Popen(cmd, cwd=cwd, stdout=f, stderr=f, shell=True if isinstance(cmd, str) else False, creationflags=0x08000000, env=env)
+            return subprocess.Popen(cmd, cwd=cwd, stdout=f, stderr=f, env=env)
 
-        # Start Dev Server only if needed
-        # Needed if: OBS is enabled OR (Overlay is enabled AND no production build exists)
         dist_path = os.path.join("broadcast-app", "dist")
         has_build = os.path.exists(dist_path) and os.path.exists(os.path.join(dist_path, "index.html"))
         
         if self.use_obs.get() or (self.use_overlay.get() and not has_build):
-            self.procs.append(spawn_with_log(["cmd", "/c", "npx vite --no-open"], "vite", cwd="broadcast-app"))
+            spawn_with_log(["npx", "vite", "--no-open"], "vite", cwd="broadcast-app")
         
-        # Determine bridge mode: If EITHER is 'all', bridge must be 'all' to get the data
         bridge_mode = "all"
         if self.settings.get("sync_mode") == "personal" and self.settings.get("obs_sync_mode") == "personal":
             bridge_mode = "personal"
         
-        bridge_cmd = py_cmd.split() + ["-u", "broadcast/bridge.py", "--server", self.settings["server"], "--slot", self.settings["slot"], "--mode", bridge_mode]
+        bridge_cmd = [py_cmd, "-u", "broadcast/bridge.py", "--server", self.settings["server"], "--slot", self.settings["slot"], "--mode", bridge_mode]
         if self.settings["password"]: bridge_cmd.extend(["--password", self.settings["password"]])
-        
-        cached_game = self.settings.get("last_game")
-        if cached_game: bridge_cmd.extend(["--game", cached_game])
-        
-        multi = self.settings.get("multi_slots", "").strip()
-        if multi: bridge_cmd.extend(["--multi", multi])
+        if self.settings.get("last_game"): bridge_cmd.extend(["--game", self.settings["last_game"]])
+        if self.settings.get("multi_slots"): bridge_cmd.extend(["--multi", self.settings["multi_slots"]])
         
         try:
             self.procs.append(spawn_with_log(bridge_cmd, "bridge"))
@@ -503,35 +450,19 @@ class BroadcastLauncherApp:
             return
         
         import time
-        for i in range(2, 0, -1):
-            if not self.is_running: return
-            self.status_label.config(text=f"Status: Overlay launching in {i}s...")
-            time.sleep(1)
+        time.sleep(2)
         
-        # Launch Electron Overlay ONLY if enabled
         if self.use_overlay.get():
-            self.procs.append(spawn_with_log(["cmd", "/c", "npm run overlay"], "overlay", cwd="broadcast-app"))
+            self.procs.append(spawn_with_log(["npm", "run", "overlay"], "overlay", cwd="broadcast-app"))
             self.status_label.config(text="Status: Overlay & Bridge Operational", fg="#55ff55")
         else:
             self.status_label.config(text="Status: Web Server & Bridge Operational", fg="#55ff55")
         
-        # Monitor health in background
         while self.is_running:
             for p in list(self.procs):
-                retcode = p.poll()
-                if retcode is not None:
-                    # Process died unexpectedly
-                    if self.is_running:
-                        # Try to identify which process it was
-                        p_args = p.args if hasattr(p, 'args') else []
-                        p_name = "Unknown"
-                        if any("bridge.py" in str(a) for a in p_args): p_name = "Bridge"
-                        elif any("vite" in str(a) for a in p_args): p_name = "Vite Server"
-                        elif any("overlay" in str(a) for a in p_args): p_name = "Overlay"
-                        
-                        hint = self.get_error_message(retcode, p_name)
-                        self.status_label.config(text=f"Status: {p_name} Crashed! ({retcode})\n{hint}", fg="#ff5555", font=("Segoe UI", 8))
-                        self.procs.remove(p) 
+                if p.poll() is not None and self.is_running:
+                    self.status_label.config(text=f"Status: Process Crashed! ({p.poll()})", fg="#ff5555")
+                    self.procs.remove(p) 
             time.sleep(2)
 
     def stop_system(self):
@@ -540,27 +471,28 @@ class BroadcastLauncherApp:
         self.status_label.config(text="Status: Stopping...", fg="#ffaa00")
         self.root.update()
 
-        # Copy the list to avoid race conditions with the monitoring thread
-        active_procs = list(self.procs)
+        for p in self.procs:
+            try:
+                parent = psutil.Process(p.pid)
+                for child in parent.children(recursive=True):
+                    child.kill()
+                parent.kill()
+            except: pass
         self.procs = []
         
-        # Kill tracked processes in background to avoid blocking the UI
-        for p in active_procs:
+        for proc in psutil.process_iter(['name']):
             try:
-                # /T kills child processes too. We use Popen so we don't wait for results.
-                subprocess.Popen(["taskkill", "/F", "/T", "/PID", str(p.pid)], 
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                 creationflags=0x08000000)
+                if proc.info['name'] in ['node', 'electron']:
+                    proc.kill()
             except: pass
         
-        # Safety: Close log files
         for f in self.log_files:
             try: f.close()
             except: pass
         self.log_files = []
         
         self.btn_text.set("START SYSTEM")
-        if hasattr(self, 'start_btn'): self.start_btn.configure(bg="#af99ef", fg="#121214")
+        self.start_btn.configure(bg="#af99ef", fg="#121214")
         self.status_label.config(text="Status: Stopped", fg="#6d8be8")
 
 if __name__ == "__main__":

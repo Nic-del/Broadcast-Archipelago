@@ -71,7 +71,9 @@ s
 2.  **Configuration**:
     - Enter the server address (e.g., `archipelago.gg:38210`).
     - Enter your Slot name (player).
+    - **Multi-Slots**: (Optional) Enter other slots to track (Format: `Slot1:Pass, Slot2:Pass`). You'll be able to switch between them instantly in the history panel.
     - Adjust position by dragging the rectangle in the **SCREEN PREVIEW**.
+
 3.  **Start**: Click **START SYSTEM**.
     - The necessary processes will launch automatically.
 4.  **Reposition**: Once the overlay is open, you can also move it directly using the small circular "Grab" handle on the side of the window.

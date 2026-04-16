@@ -227,7 +227,9 @@ class BroadcastLauncherApp:
         msg += "2. Ensure Node.js (v20+) and Python (3.12) are installed.\n"
         msg += "3. For notifications to work, ensure 'python3' is in your PATH.\n"
         msg += "4. If UI doesn't appear, check logs for Electron/Node errors.\n"
-        msg += "5. Port 8089 is used for communication. Ensure it is free."
+        msg += "5. Fixed: Added '--no-sandbox' to prevent SUID helper errors.\n"
+        msg += "6. Port 8089 is used for communication. Ensure it is free."
+
         messagebox.showinfo("Diagnostic Tool", msg)
 
     def on_monitor_change(self, event=None):
@@ -453,8 +455,10 @@ class BroadcastLauncherApp:
         time.sleep(2)
         
         if self.use_overlay.get():
-            self.procs.append(spawn_with_log(["npm", "run", "overlay"], "overlay", cwd="broadcast-app"))
+            # Added --no-sandbox to fix Chromium SUID sandbox error common on many Linux distros
+            self.procs.append(spawn_with_log(["npm", "run", "overlay", "--", "--no-sandbox"], "overlay", cwd="broadcast-app"))
             self.status_label.config(text="Status: Overlay & Bridge Operational", fg="#55ff55")
+
         else:
             self.status_label.config(text="Status: Web Server & Bridge Operational", fg="#55ff55")
         

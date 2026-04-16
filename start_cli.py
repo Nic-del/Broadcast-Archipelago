@@ -144,7 +144,8 @@ def main():
             if os.name == 'nt':
                 procs.append(subprocess.Popen(["cmd", "/c", "npm run overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
             else:
-                procs.append(subprocess.Popen(["npm", "run", "overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app")))
+                procs.append(subprocess.Popen(["npm", "run", "overlay", "--", "--no-sandbox"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app")))
+
         else:
             print("[3/3] Electron Overlay disabled in settings. Skipping.")
         

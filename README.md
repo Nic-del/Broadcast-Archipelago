@@ -5,17 +5,18 @@ This system is a premium notification tool designed for **Archipelago Multiworld
 ## ✨ New Features & Updates
 
 ### 🚀 Release 1.0.3 (Latest)
-
-- 🔀 **Dynamic Multi-Slot Support**: Switch between multiple pre-configured Archipelago slots instantly from the history panel.
-
+- 👥 **Dynamic Multi-Slot Support**: Track multiple players simultaneously (Format: `Slot1:Pass, Slot2:Pass`) and switch between them instantly from the overlay.
+- 🎥 **Enhanced OBS Integration**: Choose between **Global** and **Personal** personalization specifically for your stream overlay.
+- 🔍 **Monitoring & Diagnostics**: Built-in real-time logs and diagnostic tools to troubleshoot connection and system health.
+- ⚡ **Performance Optimized**: Locked at 30 FPS and hardware acceleration bypass to ensure zero impact on your game's performance.
+- 🛡️ **Stability Fixes**: Improved process management for clean exits and robust window position memory.
 
 ### 🌟 Core Features
 - 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
-- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window.
-- 🧪 **Integrated Testing Suite**: Instant verification with the "TEST" button.
+- 📍 **Smart Draggable Button**: A multi-purpose button to toggle history or move the window. It automatically jumps to the other side if pushed against a screen edge.
+- 🧪 **Integrated Testing Suite**: Instantly verify your layout with the "SEND TEST MESSAGES" or "TEST" buttons.
 - 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
 - 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
-- 🎨 **Smart Render Throttling**: The overlay now limits itself to 30 FPS and throttles resources when idle or hidden.
 
 ## 🛠️ How it works?
 
@@ -62,6 +63,9 @@ Before launching the system for the first time, you must install the necessary d
 
 ## 🚀 Usage
 
+> [!TIP]
+> **Quick Launch**: After your first configuration, you can launch the system instantly using **`Start_CLI.bat`** without opening the full Control Center.
+
 ### Standard Mode (Control Interface)
 
 
@@ -85,10 +89,11 @@ Once you have configured your information via the Control Center, you no longer 
 
 ---
 
-## 🎭 Tracking Modes
+## 🎭 Tracking Modes & Personalization
 
-- **All Items**: Displays absolutely everything happening in the Multiworld (Ideal for commentators or chaos).
-- **My Items**: Displays only items you send or receive.
+- **All Items (Global)**: Displays absolutely everything happening in the Multiworld (Ideal for commentators or chaos).
+- **My Items (Personal)**: Displays only items you send or receive.
+- **OBS Personalization**: You can now choose between Global or Personal filtering independently for your OBS source.
 - **OBS Mode**: Optimized for streamers. Use the local URL in an OBS Browser Source:
   `http://localhost:5173/?mode=obs`
 

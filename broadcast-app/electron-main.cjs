@@ -13,13 +13,33 @@ app.commandLine.appendSwitch('disable-gpu-shader-disk-cache'); // FIX: Prevent G
 app.commandLine.appendSwitch('disable-http-cache'); // FIX: Prevent general disk cache errors
 app.commandLine.appendSwitch('limit-fps', '30'); // Limit overlay logic/render to 30fps to save resources for the game
 
-// FIX: Set a custom user data path in the project folder to avoid conflicts with other Electron apps
-const userDataPath = path.join(__dirname, '..', '.electron_data');
-if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
-app.setPath('userData', userDataPath);
+// FIX: Set a custom user data path. 
+// We avoid writing to the project folder if we are in a read-only AppImage mount.
+let userDataPath;
+if (process.env.APPIMAGE || app.isPackaged) {
+  userDataPath = path.join(app.getPath('userData'), '..', 'broadcast-archipelago-overlay');
+} else {
+  userDataPath = path.join(__dirname, '..', '.electron_data');
+}
+
+try {
+  if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
+  app.setPath('userData', userDataPath);
+} catch (e) {
+  console.error("Could not set custom userData path, falling back to default.", e);
+}
+
+function getSettingsPath() {
+  const localPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  // In AppImage, __dirname is read-only. We should also check the current working directory.
+  const cwdPath = path.join(process.cwd(), 'broadcast_settings.json');
+  
+  if (fs.existsSync(cwdPath)) return cwdPath;
+  return localPath;
+}
 
 function loadSettings() {
-  const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  const settingsPath = getSettingsPath();
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf8');
@@ -30,12 +50,14 @@ function loadSettings() {
   }
   return null;
 }
+
 function saveSettings(settings) {
-  const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  const settingsPath = getSettingsPath();
   try {
+    // Check if we can write here
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4), 'utf8');
   } catch (e) {
-    console.error("Failed to save settings:", e);
+    console.error("Failed to save settings (might be read-only):", e);
   }
 }
 

@@ -1,19 +1,19 @@
-# BroadCast Archipelago - Notification System
+# BroadCast Archipelago - Notification System (Linux Edition)
 
 This system is a premium notification tool designed for **Archipelago Multiworld** sessions. It displays real-time sent and received items during your game with a polished and modern aesthetic.
 
 ## ✨ New Features & Updates
 
 ### 🚀 Release 1.0.3 (Latest)
+- 🐧 **Universal Linux Compatibility**: Pre-configured with `--no-sandbox` to work across all major distributions without permission hurdles.
+- 👥 **Dynamic Multi-Slot Support**: Track multiple players simultaneously (Format: `Slot1:Pass, Slot2:Pass`) and switch between them instantly.
+- 🎥 **Enhanced OBS Integration**: Choose between **Global** and **Personal** personalization specifically for your stream overlay.
+- 🔍 **Monitoring & Diagnostics**: Built-in real-time logs and diagnostic tools to troubleshoot your connection.
+- ⚡ **Performance Optimized**: Locked at 30 FPS with background throttling and hardware acceleration bypass to ensure zero impact on your game.
+- 🛡️ **Enhanced Window Management**: Protection against automatic "snapping" to (0,0) coordinates on focus loss (common on Linux window managers).
 
-- 🔄 **Dynamic Multi-Slot Support**: Track multiple players simultaneously (Format: `Slot1:Pass, Slot2:Pass`) and switch between them instantly from the history panel.
-- 🚀 **Performance Optimized**: Locked at 30 FPS with background throttling to minimize impact on your game's performance.
-- 🛡️ **Universal Linux Compatibility**: Pre-configured with `--no-sandbox` to work across all major distributions without permission hurdles.
-- 🖱️ **Enhanced Window Management**: Protection against automatic "snapping" to (0,0) coordinates on focus loss.
-
-## 🌟 Core Features
-
-- 🖥️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
+### 🌟 Core Features
+- 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
 - 📍 **Smart Draggable Button**: A multi-purpose button to toggle history or move the window. It automatically jumps to the other side if pushed against a screen edge.
 - 🧪 **Integrated Testing Suite**: Instantly verify your layout with the "SEND TEST MESSAGES" or "TEST" buttons.
 
@@ -50,6 +50,8 @@ This is the visual layer (developed with Vite + Electron):
 
 ---
 
+## ⚙️ Installation
+
 Before launching the system for the first time, you must install the necessary dependencies:
 
 1.  **`INSTALLATION.sh`**: Runs the full installation. This is the script to use for a first-time setup.
@@ -58,6 +60,9 @@ Before launching the system for the first time, you must install the necessary d
 ---
 
 ## 🚀 Usage
+
+> [!TIP]
+> **Quick Launch**: After your first configuration, you can launch the system instantly using **`python3 start_cli.py`** without opening the full Control Center.
 
 ### Standard Mode (Control Interface)
 
@@ -78,15 +83,15 @@ Before launching the system for the first time, you must install the necessary d
 Once you have configured your information via the Control Center, you no longer need to use it.
 
 - You can directly launch the file **`python3 start_cli.py`**.
-
 - This will launch the system in the background using your last saved settings.
 
 ---
 
-## 🎭 Tracking Modes
+## 🎭 Tracking Modes & Personalization
 
-- **All Items**: Displays absolutely everything happening in the Multiworld (Ideal for commentators or chaos).
-- **My Items**: Displays only items you send or receive.
+- **All Items (Global)**: Displays absolutely everything happening in the Multiworld (Ideal for commentators or chaos).
+- **My Items (Personal)**: Displays only items you send or receive.
+- **OBS Personalization**: You can now choose between Global or Personal filtering independently for your OBS source.
 - **OBS Mode**: Optimized for streamers. Use the local URL in an OBS Browser Source:
   `http://localhost:5173/?mode=obs`
 

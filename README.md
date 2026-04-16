@@ -5,18 +5,17 @@ This system is a premium notification tool designed for **Archipelago Multiworld
 ## ✨ New Features & Updates
 
 ### 🚀 Release 1.0.3 (Latest)
-- ⚡ **Zero-Impact Performance**: Deep optimizations in the rendering engine (Electron) and the Bridge (Python) to ensure 0% impact on game FPS.
-- 🎨 **Smart Render Throttling**: The overlay now limits itself to 30 FPS and throttles resources when idle or hidden.
-- 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
+
 - 🔀 **Dynamic Multi-Slot Support**: Switch between multiple pre-configured Archipelago slots instantly from the history panel.
-- 🐧 **Linux Stability Fixes**: Resolved window snapping bugs and improved coordinate management for Desktop Managers.
-- 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
+
 
 ### 🌟 Core Features
 - 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
 - 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window.
 - 🧪 **Integrated Testing Suite**: Instant verification with the "TEST" button.
-
+- 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
+- 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
+- 🎨 **Smart Render Throttling**: The overlay now limits itself to 30 FPS and throttles resources when idle or hidden.
 
 ## 🛠️ How it works?
 

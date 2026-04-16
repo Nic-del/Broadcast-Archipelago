@@ -25,6 +25,7 @@ interface GameNotification {
   item_id?: number;
   class?: number;
   timestamp: string;
+  is_mine?: boolean;
   my_alias?: string;
   raw_data?: Record<string, unknown>;
 }
@@ -264,6 +265,7 @@ const App: React.FC = () => {
       from: 'Test Player',
       to: 'Main Player',
       class: randomItem.class,
+      is_mine: true,
       my_alias: 'Main Player'
     };
 

@@ -221,14 +221,48 @@ class BroadcastLauncherApp:
                 subprocess.Popen(["xdg-open", path])
         except: pass
 
+    def has_node(self):
+        try:
+            subprocess.run(["node", "--version"], capture_output=True, check=True)
+            return True
+        except:
+            return False
+
+    def find_appimage(self):
+        dist_dir = os.path.join("broadcast-app", "dist-electron")
+        ext = ".AppImage" if platform.system() != "Windows" else ".exe"
+        
+        # Check in win-unpacked or similar subfolders if they exist
+        search_paths = [
+            dist_dir,
+            os.path.join(dist_dir, "win-unpacked")
+        ]
+        
+        import glob
+        for path in search_paths:
+            if os.path.exists(path):
+                files = glob.glob(os.path.join(path, f"*{ext}"))
+                if files:
+                    # Avoid picking the installer or uninstaller
+                    valid_files = [f for f in files if "Setup" not in f and "Uninstall" not in f]
+                    if valid_files:
+                        return os.path.abspath(valid_files[0])
+        
+        # Also check root
+        files = glob.glob(f"*{ext}")
+        if files:
+            return os.path.abspath(files[0])
+        return None
+
     def show_troubleshooting(self):
-        msg = "--- Linux Common Fixes ---\n\n"
-        msg += "1. Run './INSTALLATION.sh' to ensure all libraries are present.\n"
-        msg += "2. Ensure Node.js (v20+) and Python (3.12) are installed.\n"
-        msg += "3. For notifications to work, ensure 'python3' is in your PATH.\n"
-        msg += "4. If UI doesn't appear, check logs for Electron/Node errors.\n"
-        msg += "5. Fixed: Added '--no-sandbox' to prevent SUID helper errors.\n"
-        msg += "6. Port 8089 is used for communication. Ensure it is free."
+        msg = "--- Linux / Bazzite Common Fixes ---\n\n"
+        msg += "1. If you are on an immutable distro (Bazzite, Fedora Silverblue),\n"
+        msg += "   use the AppImage version to avoid Node.js dependency.\n\n"
+        msg += "2. Ensure Python (3.12+) is installed.\n"
+        msg += "3. For OBS Overlay without Node, you must first build the project\n"
+        msg += "   (run 'npm run build' once) or use a pre-built release.\n"
+        msg += "4. Ports: 8089 (Bridge) and 5173 (OBS) must be free.\n"
+        msg += "5. Fixed: Added '--no-sandbox' for SUID compatibility."
 
         messagebox.showinfo("Diagnostic Tool", msg)
 
@@ -431,9 +465,19 @@ class BroadcastLauncherApp:
 
         dist_path = os.path.join("broadcast-app", "dist")
         has_build = os.path.exists(dist_path) and os.path.exists(os.path.join(dist_path, "index.html"))
+        node_available = self.has_node()
+        appimage_path = self.find_appimage()
         
-        if self.use_obs.get() or (self.use_overlay.get() and not has_build):
-            spawn_with_log(["npx", "vite", "--no-open"], "vite", cwd="broadcast-app")
+        # 1. OBS Overlay
+        if self.use_obs.get():
+            if node_available:
+                spawn_with_log(["npx", "vite", "--no-open"], "vite", cwd="broadcast-app")
+            elif has_build:
+                # Bazzite/Immutable fallback: Serve built static files using Python
+                print("Node.js missing, using Python HTTP server for OBS Overlay fallback")
+                spawn_with_log([py_cmd, "-m", "http.server", "5173"], "vite", cwd=dist_path)
+            else:
+                messagebox.showwarning("System Limitation", "Node.js is missing and no 'dist' folder found.\nOBS Overlay cannot be started.")
         
         bridge_mode = "all"
         if self.settings.get("sync_mode") == "personal" and self.settings.get("obs_sync_mode") == "personal":
@@ -455,9 +499,21 @@ class BroadcastLauncherApp:
         time.sleep(2)
         
         if self.use_overlay.get():
-            # Added --no-sandbox to fix Chromium SUID sandbox error common on many Linux distros
-            self.procs.append(spawn_with_log(["npm", "run", "overlay", "--", "--no-sandbox"], "overlay", cwd="broadcast-app"))
-            self.status_label.config(text="Status: Overlay & Bridge Operational", fg="#55ff55")
+            if appimage_path:
+                print(f"Using Universal AppImage for overlay: {appimage_path}")
+                # Ensure it's executable
+                try: os.chmod(appimage_path, 0o755)
+                except: pass
+                self.procs.append(spawn_with_log([appimage_path, "--no-sandbox"], "overlay"))
+                self.status_label.config(text="Status: AppImage Overlay Operational", fg="#55ff55")
+            elif node_available:
+                # Added --no-sandbox to fix Chromium SUID sandbox error common on many Linux distros
+                self.procs.append(spawn_with_log(["npm", "run", "overlay", "--", "--no-sandbox"], "overlay", cwd="broadcast-app"))
+                self.status_label.config(text="Status: Node Overlay Operational", fg="#55ff55")
+            else:
+                messagebox.showerror("Error", "Critical dependency missing:\nNo Node.js found AND no AppImage found.\n\nPlease install Node.js or download the AppImage.")
+                self.stop_system()
+                return
 
         else:
             self.status_label.config(text="Status: Web Server & Bridge Operational", fg="#55ff55")

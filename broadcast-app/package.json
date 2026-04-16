@@ -1,14 +1,37 @@
 {
   "name": "broadcast-app",
   "private": true,
-  "version": "0.0.0",
+  "description": "BroadCast Archipelago OBS Overlay & Desktop UI",
+  "author": "BroadCast Team",
+  "version": "1.0.0",
+  "main": "electron-main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "overlay": "electron electron-main.cjs"
+    "overlay": "electron electron-main.cjs",
+    "build:electron": "tsc -b && vite build && electron-builder"
+  },
+  "build": {
+    "appId": "com.broadcast.archipelago",
+    "productName": "BroadCast Archipelago",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Education"
+    }
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
@@ -35,6 +58,7 @@
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "electron-builder": "^25.1.8"
   }
 }

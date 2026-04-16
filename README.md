@@ -2,12 +2,21 @@
 
 This system is a premium notification tool designed for **Archipelago Multiworld** sessions. It displays real-time sent and received items during your game with a polished and modern aesthetic.
 
-## ✨ New Features
+## ✨ New Features & Updates
 
+### 🚀 Release 1.0.3 (Latest)
+- ⚡ **Zero-Impact Performance**: Deep optimizations in the rendering engine (Electron) and the Bridge (Python) to ensure 0% impact on game FPS.
+- 🎨 **Smart Render Throttling**: The overlay now limits itself to 30 FPS and throttles resources when idle or hidden.
+- 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
+- 🔀 **Dynamic Multi-Slot Support**: Switch between multiple pre-configured Archipelago slots instantly from the history panel.
+- 🐧 **Linux Stability Fixes**: Resolved window snapping bugs and improved coordinate management for Desktop Managers.
+- 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
+
+### 🌟 Core Features
 - 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
-- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window. It automatically jumps to the other side of the window if you push it against a screen edge to always stay visible.
-- 🧪 **Integrated Testing Suite**: Use the "SEND TEST MESSAGES" button in the Control Center or the "TEST" button in the history panel to verify your layout instantly.
-- 🤖 **Smart Layout Engine**: Notifications automatically offset themselves to avoid overlapping with the control button.
+- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window.
+- 🧪 **Integrated Testing Suite**: Instant verification with the "TEST" button.
+
 
 ## 🛠️ How it works?
 

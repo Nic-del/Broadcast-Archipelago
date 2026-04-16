@@ -63,9 +63,8 @@ Before launching the system for the first time, you must install the necessary d
 
 ## 🚀 Usage
 
-s
-
 ### Standard Mode (Control Interface)
+
 
 1.  **Launch**: Execute the file `BroadCast-Archipelago.pyw`.
 2.  **Configuration**:

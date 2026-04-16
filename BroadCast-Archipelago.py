@@ -463,9 +463,20 @@ class BroadcastLauncherApp:
             env["NO_COLOR"] = "1"
             return subprocess.Popen(cmd, cwd=cwd, stdout=f, stderr=f, env=env)
 
-        dist_path = os.path.join("broadcast-app", "dist")
-        has_build = os.path.exists(dist_path) and os.path.exists(os.path.join(dist_path, "index.html"))
-        node_available = self.has_node()
+        # Look for the web build in several places
+        dist_options = [
+            os.path.join("broadcast-app", "dist"),
+            "dist",
+            "dist-obs"
+        ]
+        dist_path = None
+        for opt in dist_options:
+            if os.path.exists(os.path.join(opt, "index.html")):
+                dist_path = opt
+                break
+        
+        has_build = dist_path is not None
+        node_available = self.has_node() and os.path.exists("broadcast-app")
         appimage_path = self.find_appimage()
         
         # 1. OBS Overlay
@@ -474,10 +485,10 @@ class BroadcastLauncherApp:
                 spawn_with_log(["npx", "vite", "--no-open"], "vite", cwd="broadcast-app")
             elif has_build:
                 # Bazzite/Immutable fallback: Serve built static files using Python
-                print("Node.js missing, using Python HTTP server for OBS Overlay fallback")
+                print(f"Using Python HTTP server for OBS Overlay from: {dist_path}")
                 spawn_with_log([py_cmd, "-m", "http.server", "5173"], "vite", cwd=dist_path)
             else:
-                messagebox.showwarning("System Limitation", "Node.js is missing and no 'dist' folder found.\nOBS Overlay cannot be started.")
+                messagebox.showwarning("System Limitation", "OBS Overlay requires either the 'broadcast-app' folder or a 'dist' folder.\n\nOBS Overlay will not be started.")
         
         bridge_mode = "all"
         if self.settings.get("sync_mode") == "personal" and self.settings.get("obs_sync_mode") == "personal":

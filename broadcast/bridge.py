@@ -32,6 +32,30 @@ UI_CLIENTS = set()
 
 async def register_ui(websocket):
     UI_CLIENTS.add(websocket)
+    # Immediately send the current room state if we are already connected to AP
+    if hasattr(websocket, 'ap_client'):
+        c = websocket.ap_client
+        # Load latest settings to sync the UI modes
+        overlay_mode, obs_mode = "all", "all"
+        try:
+            settings_path = "broadcast_settings.json"
+            if os.path.exists(settings_path):
+                with open(settings_path, "r") as f:
+                    s = json.load(f)
+                    overlay_mode = s.get("sync_mode", "all")
+                    obs_mode = s.get("obs_sync_mode", "all")
+        except: pass
+
+        await websocket.send(json.dumps({
+            "type": "room_info", 
+            "players": list(c.player_names.values()),
+            "current_player": c.my_alias,
+            "profiles": list(c.profiles.keys()),
+            "current_slot": c.slot,
+            "overlay_sync_mode": overlay_mode,
+            "obs_sync_mode": obs_mode
+        }))
+    
     try:
         async for message in websocket:
             try:
@@ -40,6 +64,29 @@ async def register_ui(websocket):
                     await broadcast_to_ui({"type": "clear_history"})
                 elif data.get("type") == "notification":
                     await broadcast_to_ui(data)
+                elif data.get("type") == "change_slot":
+                    new_slot = data.get("slot")
+                    if new_slot:
+                        # Find the password for this slot if we have it
+                        new_pass = websocket.ap_client.profiles.get(new_slot, "")
+                        print(f"Switching to slot: {new_slot}")
+                        if hasattr(websocket, 'ap_client'):
+                            websocket.ap_client.slot = new_slot
+                            websocket.ap_client.password = new_pass
+                            websocket.ap_client.switching_slot = True
+                            if websocket.ap_client.ws:
+                                await websocket.ap_client.ws.close()
+                elif data.get("type") == "change_player":
+                    new_alias = data.get("player")
+                    if new_alias:
+                        # Find the slot ID for this alias if we can
+                        # But mostly we just need the alias for filtering
+                        print(f"Switching main player to: {new_alias}")
+                        # We need access to the ArchipelagoClient instance to change its alias
+                        # I'll pass it in register_ui or make it global
+                        if hasattr(websocket, 'ap_client'):
+                            websocket.ap_client.my_alias = new_alias
+                            await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Tracking player: {new_alias}"})
                 elif data.get("type") == "test_fill":
                     # Send 10 test notifications
                     
@@ -91,8 +138,11 @@ class ArchipelagoClient:
         self.item_maps = {}
         self.available_games = []
         self.current_game_index = 0
-        self.my_alias = slot # Will be updated on connect
+        self.my_alias = slot
         self.is_connected = False
+        self.initial_game_hint = None
+        self.profiles = {} # slot -> password
+        self.switching_slot = False
 
     async def connect(self):
         protocols = [f"wss://{self.raw_server}", f"ws://{self.raw_server}"]
@@ -106,18 +156,26 @@ class ArchipelagoClient:
                     print(f"Connected to {url}!", flush=True)
                     self.ws = ws
                     self.is_connected = True
+                    self.switching_slot = False
                     await self.listen()
-                    success = True # If listen returns without exception, we consider it a successful session
+                    success = True 
             except Exception as e:
-                print(f"Connection error or session ended: {e}", flush=True)
+                if self.switching_slot:
+                    print(f"Switching slot to {self.slot}...")
+                else:
+                    print(f"Connection error or session ended: {e}", flush=True)
                 self.is_connected = False
-                # If we were already connected and it failed, don't try the other protocol immediately
-                if success: break
-        
-        print("Reconnecting in 5 seconds...", flush=True)
-        await asyncio.sleep(5)
-        self.current_game_index = 0 # Reset game trial on full reconnection
-        await self.connect()
+                if self.ws:
+                    try: await self.ws.close()
+                    except: pass
+                self.ws = None
+            
+            if not success or self.switching_slot:
+                wait_time = 1 if self.switching_slot else 5
+                if not self.switching_slot: print(f"Reconnecting in {wait_time} seconds...", flush=True)
+                await asyncio.sleep(wait_time)
+                self.current_game_index = 0 
+                await self.connect()
 
     async def identify(self, game_name=""):
         hello = [{
@@ -135,6 +193,15 @@ class ArchipelagoClient:
                 if cmd == "RoomInfo":
                     self.available_games = packet.get("games", [])
                     await self.ws.send(json.dumps([{"cmd": "GetDataPackage"}]))
+                    
+                    # If we already have a cached game name (from args), try it first
+                    initial_game = ""
+                    if hasattr(self, 'initial_game_hint') and self.initial_game_hint in self.available_games:
+                        initial_game = self.initial_game_hint
+                        # Remove it from the list so we don't try it twice if it fails
+                        self.available_games = [g for g in self.available_games if g != initial_game]
+                        self.available_games.insert(0, initial_game) # Move to front
+                    
                     await self.identify(self.available_games[0] if self.available_games else "")
                 elif cmd == "DataPackage":
                     data = packet.get("data", {})
@@ -142,16 +209,16 @@ class ArchipelagoClient:
                         mapping = {str(v): k for k, v in game_data.get("item_name_to_id", {}).items()}
                         self.item_maps[game] = mapping
                 elif cmd == "ConnectionRefused":
-                    print(f"Connection refused: {packet.get('errors')}", flush=True)
-                    if "InvalidGame" in packet.get("errors", []) and self.current_game_index < len(self.available_games) - 1:
+                    errors = packet.get('errors', [])
+                    if "InvalidGame" in errors and self.current_game_index < len(self.available_games) - 1:
+                        # Silent hunt: don't print InvalidGame errors while we are still trying other games
                         self.current_game_index += 1
                         await self.identify(self.available_games[self.current_game_index])
                     else:
+                        print(f"Connection refused: {errors}", flush=True)
                         # Other errors (InvalidPassword, IncompatibleVersion, etc)
-                        # We might want to stop or notify the UI
-                        await broadcast_to_ui({"type": "notification", "event": "error", "text": f"Connection Refused: {', '.join(packet.get('errors', []))}"})
+                        await broadcast_to_ui({"type": "notification", "event": "error", "text": f"Connection Refused: {', '.join(errors)}"})
                 elif cmd == "Connected":
-                    print(f"SUCCESS! Connected as {self.slot}", flush=True)
                     # Find our own alias (the name we have on the server)
                     our_slot_id = packet.get("slot")
                     for p in packet.get("players", []):
@@ -164,7 +231,43 @@ class ArchipelagoClient:
                     for s_id, info in slot_info.items():
                         self.slot_to_game[str(s_id)] = info.get("game", "Unknown")
                     
-                    await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Connected to AP as {self.slot}"})
+                    my_game = self.slot_to_game.get(str(our_slot_id), "Unknown")
+                    print(f"SUCCESS! Connected as {self.slot} (Game: {my_game})", flush=True)
+                    
+                    # Load latest sync modes
+                    ov_mode, ob_mode = "all", "all"
+                    try:
+                        settings_path = "broadcast_settings.json"
+                        if os.path.exists(settings_path):
+                            with open(settings_path, "r") as f:
+                                s = json.load(f)
+                                ov_mode = s.get("sync_mode", "all")
+                                ob_mode = s.get("obs_sync_mode", "all")
+                    except: pass
+
+                    # Send full player list and profiles to UI
+                    await broadcast_to_ui({
+                        "type": "room_info", 
+                        "players": list(self.player_names.values()),
+                        "current_player": self.my_alias,
+                        "profiles": list(self.profiles.keys()),
+                        "current_slot": self.slot,
+                        "overlay_sync_mode": ov_mode,
+                        "obs_sync_mode": ob_mode
+                    })
+                    
+                    await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Connected to AP as {self.slot} ({my_game})"})
+                    
+                    # Cache the successful game name in settings
+                    try:
+                        settings_path = "broadcast_settings.json"
+                        if os.path.exists(settings_path):
+                            with open(settings_path, "r") as f:
+                                settings = json.load(f)
+                            settings["last_game"] = my_game
+                            with open(settings_path, "w") as f:
+                                json.dump(settings, f, indent=4)
+                    except: pass
                 elif cmd == "PrintJSON":
                     await self.handle_print_json(packet)
 
@@ -176,7 +279,7 @@ class ArchipelagoClient:
             
         parts = packet.get("data", [])
         if msg_type in ["ItemSend", "ItemReceive"] or any(p.get("type") in ["item_id", "item_name"] for p in parts):
-            item_name, p_from, p_to, item_class = "", "Someone", self.my_alias, 1
+            item_name, p_from, p_to, item_class = "", "Someone", "Someone", 1
             found_players = []
             for part in parts:
                 p_type, text = part.get("type"), part.get("text", "")
@@ -267,20 +370,40 @@ def kill_port(port):
     except Exception: pass
 
 async def main():
+    # ... (args parsing) ...
     parser = argparse.ArgumentParser()
     parser.add_argument("--server", required=True)
     parser.add_argument("--slot", required=True)
     parser.add_argument("--password")
     parser.add_argument("--port", type=int, default=8089)
     parser.add_argument("--mode", default="all", choices=["all", "personal"])
+    parser.add_argument("--game") # Optional hinted game
+    parser.add_argument("--multi") # Comma separated multi-slots (Slot:Pass)
     args = parser.parse_args()
     
-    # NEW: Cleanup port before starting
     kill_port(args.port)
     
+    ap_client = ArchipelagoClient(args.server, args.slot, args.password, args.mode)
+    if args.game: ap_client.initial_game_hint = args.game
+    if args.multi:
+        parts = [p.strip() for p in args.multi.split(",") if p.strip()]
+        for p in parts:
+            if ":" in p:
+                s, pw = p.split(":", 1)
+                ap_client.profiles[s.strip()] = pw.strip()
+            else:
+                ap_client.profiles[p.strip()] = ""
+        # Ensure our main slot is in the profiles too
+        if args.slot not in ap_client.profiles:
+            ap_client.profiles[args.slot] = args.password or ""
+    
+    # Define the websocket handler to have access to the client
+    async def bridge_handler(websocket):
+        websocket.ap_client = ap_client
+        await register_ui(websocket)
+
     print(f"\n--- Bridge Starting ({args.mode} mode) ---", flush=True)
-    async with websockets.serve(register_ui, "localhost", args.port):
-        ap_client = ArchipelagoClient(args.server, args.slot, args.password, args.mode)
+    async with websockets.serve(bridge_handler, "localhost", args.port):
         await ap_client.connect()
 
 if __name__ == "__main__":

@@ -2,12 +2,20 @@
 
 This system is a premium notification tool designed for **Archipelago Multiworld** sessions. It displays real-time sent and received items during your game with a polished and modern aesthetic.
 
-## ✨ New Features
+## ✨ New Features & Updates
 
+### 🚀 Release 1.0.3 (Latest)
+
+- 🔀 **Dynamic Multi-Slot Support**: Switch between multiple pre-configured Archipelago slots instantly from the history panel.
+
+
+### 🌟 Core Features
 - 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
-- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window. It automatically jumps to the other side of the window if you push it against a screen edge to always stay visible.
-- 🧪 **Integrated Testing Suite**: Use the "SEND TEST MESSAGES" button in the Control Center or the "TEST" button in the history panel to verify your layout instantly.
-- 🤖 **Smart Layout Engine**: Notifications automatically offset themselves to avoid overlapping with the control button.
+- 📍 **Smart Draggable Button**: A single, multi-purpose button to toggle history or move the window.
+- 🧪 **Integrated Testing Suite**: Instant verification with the "TEST" button.
+- 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
+- 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
+- 🎨 **Smart Render Throttling**: The overlay now limits itself to 30 FPS and throttles resources when idle or hidden.
 
 ## 🛠️ How it works?
 
@@ -54,15 +62,16 @@ Before launching the system for the first time, you must install the necessary d
 
 ## 🚀 Usage
 
-s
-
 ### Standard Mode (Control Interface)
+
 
 1.  **Launch**: Execute the file `BroadCast-Archipelago.pyw`.
 2.  **Configuration**:
     - Enter the server address (e.g., `archipelago.gg:38210`).
     - Enter your Slot name (player).
+    - **Multi-Slots**: (Optional) Enter other slots to track (Format: `Slot1:Pass, Slot2:Pass`). You'll be able to switch between them instantly in the history panel.
     - Adjust position by dragging the rectangle in the **SCREEN PREVIEW**.
+
 3.  **Start**: Click **START SYSTEM**.
     - The necessary processes will launch automatically.
 4.  **Reposition**: Once the overlay is open, you can also move it directly using the small circular "Grab" handle on the side of the window.

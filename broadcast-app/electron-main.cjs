@@ -9,7 +9,14 @@ app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-gpu-compositing');
 app.commandLine.appendSwitch('disable-gpu-rasterization');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache'); // FIX: Prevent GPU cache "Access Denied" errors
+app.commandLine.appendSwitch('disable-http-cache'); // FIX: Prevent general disk cache errors
 app.commandLine.appendSwitch('limit-fps', '30'); // Limit overlay logic/render to 30fps to save resources for the game
+
+// FIX: Set a custom user data path in the project folder to avoid conflicts with other Electron apps
+const userDataPath = path.join(__dirname, '..', '.electron_data');
+if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
+app.setPath('userData', userDataPath);
 
 function loadSettings() {
   const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
@@ -96,19 +103,34 @@ function createWindow() {
 
   // Load the Production Build or fall back to Dev Server
   const distPath = path.join(__dirname, 'dist', 'index.html');
+  const syncMode = settings && settings.sync_mode ? settings.sync_mode : 'all';
 
   if (fs.existsSync(distPath)) {
-    win.loadFile(distPath);
+    win.loadFile(distPath, { query: { view: 'overlay', sync: syncMode } });
   } else {
-    win.loadURL('http://localhost:5173');
+    win.loadURL(`http://localhost:5173?view=overlay&sync=${syncMode}`);
   }
 
   // OPTIMIZATION: Lower frame rate even further when not needed
   win.webContents.setFrameRate(30);
 
   // Savestate
+  let isSavingBlocked = false;
+  win.on('blur', () => {
+    // Prevent saving if window snaps to (0,0) on blur (Linux/Desktop manager bug)
+    isSavingBlocked = true;
+    setTimeout(() => { isSavingBlocked = false; }, 500);
+  });
+
   const saveState = () => {
+    if (isSavingBlocked) return;
+    
     const bounds = win.getBounds();
+    
+    // Safety check: Don't save (0,0) or tiny windows which are likely glitches
+    if (bounds.x === 0 && bounds.y === 0) return;
+    if (bounds.width < 10 || bounds.height < 10) return;
+
     const currentDisplay = screen.getDisplayMatching(bounds);
     const displays = screen.getAllDisplays();
     const displayIndex = displays.findIndex(d => d.id === currentDisplay.id);

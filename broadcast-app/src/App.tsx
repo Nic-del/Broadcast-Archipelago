@@ -37,9 +37,16 @@ interface DisplayInfo {
 }
 
 const App: React.FC = () => {
-  // Detect Steam/OBS Mode from URL
-  const isStreamMode = useMemo(() => {
-    return new URLSearchParams(window.location.search).get('mode') === 'obs';
+  // Detect View Mode and Sync Mode from URL
+  const { isStreamMode, syncMode } = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isElectron = !!(window as any).electron;
+    
+    // Auto-detect OBS: If explicitly requested via URL OR if NOT running in Electron
+    return {
+      isStreamMode: params.get('view') === 'obs' || params.get('mode') === 'obs' || !isElectron,
+      syncMode: params.get('sync') || 'all'
+    };
   }, []);
 
   const [notifications, setNotifications] = useState<GameNotification[]>(() => {
@@ -47,12 +54,18 @@ const App: React.FC = () => {
       try {
         const saved = localStorage.getItem('broadcast_history');
         if (saved) {
-          // Load items and filter out system messages for OBS
-          const parsed = JSON.parse(saved) as GameNotification[];
+          let parsed = JSON.parse(saved) as GameNotification[];
+          
+          // Filter history based on sync mode if in OBS mode
+          if (syncMode === 'personal') {
+            parsed = parsed.filter(n => n.is_mine);
+          }
+
+          // For OBS mode, we show the last 15 items in chronological order (newest at bottom)
           return parsed
             .filter(n => n.event === 'receive' || n.event === 'send')
             .slice(0, 15)
-            .reverse();
+            .reverse(); // Reverse because history is [newest, ..., oldest]
         }
       } catch {
         return [];
@@ -64,7 +77,14 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<GameNotification[]>(() => {
     try {
       const saved = localStorage.getItem('broadcast_history');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      let parsed = JSON.parse(saved) as GameNotification[];
+      
+      // Filter history based on sync mode
+      if (syncMode === 'personal') {
+        parsed = parsed.filter(n => n.is_mine);
+      }
+      return parsed;
     } catch {
       return [];
     }
@@ -75,6 +95,10 @@ const App: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [windowBounds, setWindowBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [playerList, setPlayerList] = useState<string[]>([]);
+  const [multiSlots, setMultiSlots] = useState<string[]>([]);
+  const [currentPlayer, setCurrentPlayer] = useState<string>('');
+  const [currentSlot, setCurrentSlot] = useState<string>('');
   const socketRef = useRef<WebSocket | null>(null);
 
   // Fetch initial data from Electron
@@ -124,6 +148,14 @@ const App: React.FC = () => {
     return index !== -1 ? index : 0;
   }, [windowBounds, displays]);
 
+  const [currentSyncMode, setCurrentSyncMode] = useState<string>(syncMode);
+  const syncModeRef = useRef<string>(syncMode);
+
+  // Sync ref with state
+  useEffect(() => {
+    syncModeRef.current = currentSyncMode;
+  }, [currentSyncMode]);
+
   // Connect to Bridge
   useEffect(() => {
     let isMounted = true;
@@ -150,43 +182,51 @@ const App: React.FC = () => {
         try {
           const data = JSON.parse(event.data);
           
-          const clearAllData = () => {
-            localStorage.clear();
-            sessionStorage.clear();
-            // Clear cookies
-            document.cookie.split(";").forEach((c) => {
-              document.cookie = c
-                .replace(/^ +/, "")
-                .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-            });
-            setNotifications([]);
-            setHistory([]);
-          };
-
-          if (data.type === 'clear_history') {
-            clearAllData();
+          if (data.type === 'room_info') {
+            if (data.players) setPlayerList(data.players.sort());
+            if (data.current_player) setCurrentPlayer(data.current_player);
+            if (data.profiles) setMultiSlots(data.profiles);
+            if (data.current_slot) setCurrentSlot(data.current_slot);
+            
+            // Dynamic Mode Sync from Bridge
+            const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
+            if (remoteMode) {
+              console.log('Dynamic sync mode update:', remoteMode);
+              setCurrentSyncMode(remoteMode);
+            }
             return;
           }
 
           if (data.type === 'notification') {
+            // Apply sync filtering using the REF to avoid stale closures
+            if (syncModeRef.current === 'personal' && !data.is_mine) {
+              return;
+            }
+
             // Skip system messages in OBS mode
             if (isStreamMode && (data.event === 'normal' || data.event === 'error')) {
               return;
             }
+            
             const newNotif: GameNotification = {
               ...data,
               id: Math.random().toString(36).substr(2, 9),
               timestamp: new Date().toLocaleTimeString()
             };
             
-            setNotifications(prev => [...prev, newNotif]);
+            setNotifications(prev => {
+              const updated = [...prev, newNotif];
+              if (isStreamMode) return updated.slice(-15);
+              return updated;
+            });
+
             setHistory(prev => {
               const updated = [newNotif, ...prev].slice(0, 100);
               localStorage.setItem('broadcast_history', JSON.stringify(updated));
               return updated;
             });
 
-            // Auto-remove from overlay (ONLY if not in stream mode)
+            // Auto-remove overlay items
             if (!isStreamMode) {
               setTimeout(() => {
                 if (!isMounted) return;
@@ -194,24 +234,11 @@ const App: React.FC = () => {
               }, 10000);
             }
           }
-        } catch (e) {
-          console.error('Failed to parse message', e);
-        }
+        } catch (e) { console.error(e); }
       };
     };
-
     connect();
-
-    // Cleanup function
-    return () => {
-      isMounted = false;
-      clearTimeout(reconnectTimeout);
-      if (socketRef.current) {
-        // Disabling onclose ensures we don't accidentally trigger a reconnect on manual close
-        socketRef.current.onclose = null;
-        socketRef.current.close();
-      }
-    };
+    return () => { isMounted = false; clearTimeout(reconnectTimeout); if (socketRef.current) socketRef.current.close(); };
   }, [isStreamMode]);
 
   // Debug position logic
@@ -258,6 +285,20 @@ const App: React.FC = () => {
     }
   };
 
+  const switchSlot = (slot: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'change_slot', slot: slot }));
+      setCurrentSlot(slot); // Immediate visual feedback
+    }
+  };
+
+  const switchPlayer = (name: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'change_player', player: name }));
+      setCurrentPlayer(name);
+    }
+  };
+
   const getAccentColor = (itemClass?: number) => {
     switch(itemClass) {
       case 0: return 'border-accent-prog shadow-accent-prog/20';
@@ -296,7 +337,7 @@ const App: React.FC = () => {
       {/* Overlay Area (Notifications) */}
       <div className={cn(
         "flex-1 relative overflow-hidden pointer-events-none p-4",
-        isStreamMode && "bg-black/20" // Optional subtle dark shade for OBS
+        isStreamMode && "bg-transparent" // OBS mode MUST be transparent
       )}>
         {/* Notifications offset intelligently based on the button position */}
         <div className={cn(
@@ -366,6 +407,12 @@ const App: React.FC = () => {
           <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <History className="w-5 h-5" /> History
+              <span className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded-full border uppercase font-black ml-1",
+                currentSyncMode === 'all' ? "bg-accent-prog/10 border-accent-prog/30 text-accent-prog" : "bg-accent-useful/10 border-accent-useful/30 text-accent-useful"
+              )}>
+                {currentSyncMode === 'all' ? 'All' : 'Perso'}
+              </span>
             </h2>
             <div className="flex gap-2">
               <button 
@@ -473,6 +520,57 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* Players Selection (Multi-Player mode) */}
+            {/* Multi-Slot Selector */}
+            {multiSlots.length > 1 && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
+                  <Monitor className="w-3 h-3" /> Pre-configured Slots
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {multiSlots.map(slot => (
+                    <button
+                      key={slot}
+                      onClick={() => switchSlot(slot)}
+                      className={cn(
+                        "text-[10px] px-2 py-1 rounded-md border transition-all truncate min-w-[80px]",
+                        currentSlot === slot 
+                          ? "bg-accent-useful/20 border-accent-useful text-accent-useful font-bold" 
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20 text-white"
+                      )}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Players Selection (Multi-Player mode) */}
+            {playerList.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
+                  <Bell className="w-3 h-3" /> Switch Player View
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {playerList.map(name => (
+                    <button
+                      key={name}
+                      onClick={() => switchPlayer(name)}
+                      className={cn(
+                        "text-[10px] px-2 py-1 rounded-md border transition-all truncate max-w-[120px]",
+                        currentPlayer === name 
+                          ? "bg-accent-prog/20 border-accent-prog text-accent-prog font-bold" 
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
+                      )}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="pt-2">
             <div className="flex items-center justify-between mb-3">

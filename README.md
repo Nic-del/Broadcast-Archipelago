@@ -8,7 +8,6 @@ This system is a premium notification tool designed for **Archipelago Multiworld
 - 👥 **Dynamic Multi-Slot Support**: Track multiple players simultaneously (Format: `Slot1:Pass, Slot2:Pass`) and switch between them instantly from the overlay.
 - 🎥 **Enhanced OBS Integration**: Choose between **Global** and **Personal** personalization specifically for your stream overlay.
 - 🔍 **Monitoring & Diagnostics**: Built-in real-time logs and diagnostic tools to troubleshoot connection and system health.
-- ⚡ **Performance Optimized**: Locked at 30 FPS and hardware acceleration bypass to ensure zero impact on your game's performance.
 - 🛡️ **Stability Fixes**: Improved process management for clean exits and robust window position memory.
 
 ### 🌟 Core Features

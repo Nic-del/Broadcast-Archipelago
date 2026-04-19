@@ -213,7 +213,7 @@ class BroadcastLauncherApp:
         msgs = {
             "3221225794": "DLL Init Failed. Try restarting your PC or checking and installing 'Visual C++ Redistributable'.",
             "3221225781": "Missing System DLL. Ensure you have the latest Windows Updates and C++ Runtimes.",
-            "1": "Script Error. This usually means 'node_modules' are missing. Try running INSTALLATION.bat.",
+            "1": "Script Error. Python or Node modules are missing. Try running INSTALLATION.bat.",
             "9009": f"Command not found. Is {'Node.js' if 'Vite' in p_name or 'Overlay' in p_name else 'Python'} installed and in PATH?",
             "3": "Path not found. The app couldn't find the 'broadcast-app' folder.",
             "127": "Command not found (Linux/Unix).",

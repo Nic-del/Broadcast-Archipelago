@@ -59,6 +59,9 @@ const App: React.FC = () => {
           // Filter history based on sync mode if in OBS mode
           if (syncMode === 'personal') {
             parsed = parsed.filter(n => n.is_mine);
+          } else if (syncMode === 'filtered') {
+            const tracked = JSON.parse(localStorage.getItem('broadcast_tracked_players') || '[]');
+            parsed = parsed.filter(n => tracked.includes(n.from) || tracked.includes(n.to));
           }
 
           // For OBS mode, we show the last 15 items in chronological order (newest at bottom)
@@ -83,6 +86,9 @@ const App: React.FC = () => {
       // Filter history based on sync mode
       if (syncMode === 'personal') {
         parsed = parsed.filter(n => n.is_mine);
+      } else if (syncMode === 'filtered') {
+        const tracked = JSON.parse(localStorage.getItem('broadcast_tracked_players') || '[]');
+        parsed = parsed.filter(n => tracked.includes(n.from) || tracked.includes(n.to));
       }
       return parsed;
     } catch {
@@ -97,6 +103,14 @@ const App: React.FC = () => {
   const [windowBounds, setWindowBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [playerList, setPlayerList] = useState<string[]>([]);
   const [multiSlots, setMultiSlots] = useState<string[]>([]);
+  const [trackedPlayers, setTrackedPlayers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('broadcast_tracked_players');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [currentPlayer, setCurrentPlayer] = useState<string>('');
   const [currentSlot, setCurrentSlot] = useState<string>('');
   const socketRef = useRef<WebSocket | null>(null);
@@ -148,13 +162,21 @@ const App: React.FC = () => {
     return index !== -1 ? index : 0;
   }, [windowBounds, displays]);
 
+  const [overlayMode, setOverlayMode] = useState<string>('all');
+  const [obsMode, setObsMode] = useState<string>('all');
   const [currentSyncMode, setCurrentSyncMode] = useState<string>(syncMode);
   const syncModeRef = useRef<string>(syncMode);
+  const trackedPlayersRef = useRef<string[]>(trackedPlayers);
 
-  // Sync ref with state
+  // Sync refs with state
   useEffect(() => {
     syncModeRef.current = currentSyncMode;
   }, [currentSyncMode]);
+
+  useEffect(() => {
+    trackedPlayersRef.current = trackedPlayers;
+    localStorage.setItem('broadcast_tracked_players', JSON.stringify(trackedPlayers));
+  }, [trackedPlayers]);
 
   // Connect to Bridge
   useEffect(() => {
@@ -187,6 +209,9 @@ const App: React.FC = () => {
             if (data.current_player) setCurrentPlayer(data.current_player);
             if (data.profiles) setMultiSlots(data.profiles);
             if (data.current_slot) setCurrentSlot(data.current_slot);
+            if (data.tracked_players) setTrackedPlayers(data.tracked_players);
+            if (data.overlay_sync_mode) setOverlayMode(data.overlay_sync_mode);
+            if (data.obs_sync_mode) setObsMode(data.obs_sync_mode);
             
             // Dynamic Mode Sync from Bridge
             const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
@@ -197,10 +222,32 @@ const App: React.FC = () => {
             return;
           }
 
+          if (data.type === 'clear_history') {
+            console.log('Clearing history from bridge command');
+            setNotifications([]);
+            setHistory([]);
+            localStorage.removeItem('broadcast_history');
+            return;
+          }
+
           if (data.type === 'notification') {
             // Apply sync filtering using the REF to avoid stale closures
-            if (syncModeRef.current === 'personal' && !data.is_mine) {
-              return;
+            const mode = syncModeRef.current;
+            
+            // Bypass filters for test messages
+            if (data.is_test) {
+              // Continue processing
+            } else {
+              if (mode === 'personal' && !data.is_mine) {
+                return;
+              }
+              if (mode === 'filtered') {
+                const isFromTracked = trackedPlayersRef.current.includes(data.from);
+                const isToTracked = trackedPlayersRef.current.includes(data.to);
+                if (!isFromTracked && !isToTracked) {
+                  return;
+                }
+              }
             }
 
             // Skip system messages in OBS mode
@@ -264,7 +311,8 @@ const App: React.FC = () => {
       from: 'Test Player',
       to: 'Main Player',
       class: randomItem.class,
-      my_alias: 'Main Player'
+      my_alias: 'Main Player',
+      is_test: true
     };
 
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -296,6 +344,31 @@ const App: React.FC = () => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'change_player', player: name }));
       setCurrentPlayer(name);
+    }
+  };
+
+  const toggleTrackedPlayer = (name: string) => {
+    const newTracked = trackedPlayers.includes(name) 
+      ? trackedPlayers.filter(p => p !== name) 
+      : [...trackedPlayers, name];
+    
+    setTrackedPlayers(newTracked);
+    
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ 
+        type: 'update_tracked_players', 
+        players: newTracked 
+      }));
+    }
+  };
+
+  const changeSyncMode = (target: 'overlay' | 'obs', mode: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ 
+        type: 'update_sync_mode', 
+        target, 
+        mode 
+      }));
     }
   };
 
@@ -406,13 +479,7 @@ const App: React.FC = () => {
         )}>
           <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <History className="w-5 h-5" /> History
-              <span className={cn(
-                "text-[9px] px-1.5 py-0.5 rounded-full border uppercase font-black ml-1",
-                currentSyncMode === 'all' ? "bg-accent-prog/10 border-accent-prog/30 text-accent-prog" : "bg-accent-useful/10 border-accent-useful/30 text-accent-useful"
-              )}>
-                {currentSyncMode === 'all' ? 'All' : 'Perso'}
-              </span>
+              <History className="w-5 h-5" /> Settings
             </h2>
             <div className="flex gap-2">
               <button 
@@ -441,6 +508,54 @@ const App: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
+            {/* Sync Modes Selection */}
+            <div className="space-y-4 bg-white/5 p-3 rounded-xl border border-white/5">
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex justify-between items-center">
+                  Overlay Sync Selection
+                  <span className="text-accent-prog lowercase font-normal italic opacity-60">Apply to this app</span>
+                </h3>
+                <div className="grid grid-cols-3 gap-1">
+                  {['all', 'filtered', 'personal'].map(m => (
+                    <button
+                      key={m}
+                      onClick={() => changeSyncMode('overlay', m)}
+                      className={cn(
+                        "text-[9px] py-1 rounded border uppercase font-bold transition-all",
+                        overlayMode === m 
+                          ? "bg-accent-prog/20 border-accent-prog text-accent-prog shadow-[0_0_8px_rgba(175,153,239,0.3)]" 
+                          : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                      )}
+                    >
+                      {m === 'personal' ? 'Perso' : m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex justify-between items-center">
+                  OBS Sync Selection
+                  <span className="text-accent-useful lowercase font-normal italic opacity-60">Apply to Browser Source</span>
+                </h3>
+                <div className="grid grid-cols-3 gap-1">
+                  {['all', 'filtered', 'personal'].map(m => (
+                    <button
+                      key={m}
+                      onClick={() => changeSyncMode('obs', m)}
+                      className={cn(
+                        "text-[9px] py-1 rounded border uppercase font-bold transition-all",
+                        obsMode === m 
+                          ? "bg-accent-useful/20 border-accent-useful text-accent-useful shadow-[0_0_8px_rgba(34,197,94,0.3)]" 
+                          : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                      )}
+                    >
+                      {m === 'personal' ? 'Perso' : m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             {/* Screen Preview */}
             {displays.length > 0 && (
               <div className="space-y-3">
@@ -547,28 +662,77 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* Players Selection (Multi-Player mode) */}
+            {/* Players Selection */}
             {playerList.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-                  <Bell className="w-3 h-3" /> Switch Player View
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {playerList.map(name => (
-                    <button
-                      key={name}
-                      onClick={() => switchPlayer(name)}
-                      className={cn(
-                        "text-[10px] px-2 py-1 rounded-md border transition-all truncate max-w-[120px]",
-                        currentPlayer === name 
-                          ? "bg-accent-prog/20 border-accent-prog text-accent-prog font-bold" 
-                          : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
-                      )}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
+              <div className="space-y-6">
+                {/* 1. Tracked Players (Filtered Mode Management) */}
+                {(overlayMode === 'filtered' || obsMode === 'filtered') && (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-accent-filtered flex items-center gap-2">
+                        <Bell className="w-3 h-3" /> Tracked Players (Filtered)
+                      </h3>
+                      <button 
+                        onClick={() => {
+                          setTrackedPlayers([]);
+                          if (socketRef.current?.readyState === WebSocket.OPEN) {
+                            socketRef.current.send(JSON.stringify({ type: 'update_tracked_players', players: [] }));
+                          }
+                        }}
+                        className="text-[9px] text-neutral-500 hover:text-white uppercase"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {playerList.map(name => {
+                        const isTracked = trackedPlayers.includes(name);
+                        return (
+                          <button
+                            key={`tracked-${name}`}
+                            onClick={() => toggleTrackedPlayer(name)}
+                            className={cn(
+                              "text-[10px] px-2 py-1 rounded-md border transition-all truncate max-w-[120px]",
+                              isTracked 
+                                ? "bg-accent-filtered/20 border-accent-filtered text-accent-filtered font-bold" 
+                                : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
+                            )}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Main Viewer Selection (Personal/All Mode) */}
+                {overlayMode !== 'filtered' && (
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-accent-prog flex items-center gap-2">
+                      <Bell className="w-3 h-3" /> Overlay Viewer Selection
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {playerList.map(name => {
+                        const isCurrent = currentPlayer === name;
+                        return (
+                          <button
+                            key={`view-${name}`}
+                            onClick={() => switchPlayer(name)}
+                            className={cn(
+                              "text-[10px] px-2 py-1 rounded-md border transition-all truncate max-w-[120px]",
+                              isCurrent 
+                                ? "bg-accent-prog/20 border-accent-prog text-accent-prog font-bold shadow-[0_0_10px_rgba(175,153,239,0.2)]" 
+                                : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
+                            )}
+                          >
+                            {name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

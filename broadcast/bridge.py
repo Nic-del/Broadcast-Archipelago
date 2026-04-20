@@ -36,7 +36,7 @@ async def register_ui(websocket):
     if hasattr(websocket, 'ap_client'):
         c = websocket.ap_client
         # Load latest settings to sync the UI modes
-        overlay_mode, obs_mode = "all", "all"
+        overlay_mode, obs_mode, tracked_players = "all", "all", []
         try:
             settings_path = "broadcast_settings.json"
             if os.path.exists(settings_path):
@@ -44,6 +44,9 @@ async def register_ui(websocket):
                     s = json.load(f)
                     overlay_mode = s.get("sync_mode", "all")
                     obs_mode = s.get("obs_sync_mode", "all")
+                    tracked_str = s.get("tracked_players", "")
+                    if tracked_str:
+                        tracked_players = [p.strip() for p in tracked_str.split(",") if p.strip()]
         except: pass
 
         await websocket.send(json.dumps({
@@ -53,7 +56,8 @@ async def register_ui(websocket):
             "profiles": list(c.profiles.keys()),
             "current_slot": c.slot,
             "overlay_sync_mode": overlay_mode,
-            "obs_sync_mode": obs_mode
+            "obs_sync_mode": obs_mode,
+            "tracked_players": tracked_players
         }))
     
     try:
@@ -87,6 +91,63 @@ async def register_ui(websocket):
                         if hasattr(websocket, 'ap_client'):
                             websocket.ap_client.my_alias = new_alias
                             await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Tracking player: {new_alias}"})
+                elif data.get("type") == "update_sync_mode":
+                    target = data.get("target") # "overlay" or "obs"
+                    new_mode = data.get("mode")
+                    if target in ["overlay", "obs"] and new_mode in ["all", "personal", "filtered"]:
+                        try:
+                            settings_path = "broadcast_settings.json"
+                            settings = {}
+                            if os.path.exists(settings_path):
+                                with open(settings_path, "r") as f:
+                                    settings = json.load(f)
+                            
+                            key = "sync_mode" if target == "overlay" else "obs_sync_mode"
+                            settings[key] = new_mode
+                            
+                            with open(settings_path, "w") as f:
+                                json.dump(settings, f, indent=4)
+                            
+                            # Update ap_client if it's the bridge mode (overlay)
+                            # Actually bridge always works in 'all' if needed, but we should notify others
+                            await broadcast_to_ui({
+                                "type": "room_info", 
+                                "players": list(websocket.ap_client.player_names.values()),
+                                "current_player": websocket.ap_client.my_alias,
+                                "profiles": list(websocket.ap_client.profiles.keys()),
+                                "current_slot": websocket.ap_client.slot,
+                                "overlay_sync_mode": settings.get("sync_mode", "all"),
+                                "obs_sync_mode": settings.get("obs_sync_mode", "all"),
+                                "tracked_players": [p.strip() for p in settings.get("tracked_players", "").split(",") if p.strip()]
+                            })
+                        except Exception as e: print(f"Error updating sync mode: {e}")
+
+                elif data.get("type") == "update_tracked_players":
+                    players = data.get("players", [])
+                    try:
+                        settings_path = "broadcast_settings.json"
+                        settings = {}
+                        if os.path.exists(settings_path):
+                            with open(settings_path, "r") as f:
+                                settings = json.load(f)
+                        
+                        settings["tracked_players"] = ", ".join(players)
+                        
+                        with open(settings_path, "w") as f:
+                            json.dump(settings, f, indent=4)
+                        
+                        await broadcast_to_ui({
+                            "type": "room_info", 
+                            "players": list(websocket.ap_client.player_names.values()),
+                            "current_player": websocket.ap_client.my_alias,
+                            "profiles": list(websocket.ap_client.profiles.keys()),
+                            "current_slot": websocket.ap_client.slot,
+                            "overlay_sync_mode": settings.get("sync_mode", "all"),
+                            "obs_sync_mode": settings.get("obs_sync_mode", "all"),
+                            "tracked_players": players
+                        })
+                    except Exception as e: print(f"Error updating tracked players: {e}")
+
                 elif data.get("type") == "test_fill":
                     # Send 10 test notifications
                     
@@ -108,7 +169,8 @@ async def register_ui(websocket):
                             "to": p2,
                             "class": iclass,
                             "is_mine": random.choice([True, False]),
-                            "my_alias": p2
+                            "my_alias": p2,
+                            "is_test": True
                         })
                         await asyncio.sleep(0.1)
             except: pass
@@ -143,6 +205,7 @@ class ArchipelagoClient:
         self.initial_game_hint = None
         self.profiles = {} # slot -> password
         self.switching_slot = False
+        self.tracked_players = []
 
     async def connect(self):
         protocols = [f"wss://{self.raw_server}", f"ws://{self.raw_server}"]
@@ -253,7 +316,8 @@ class ArchipelagoClient:
                         "profiles": list(self.profiles.keys()),
                         "current_slot": self.slot,
                         "overlay_sync_mode": ov_mode,
-                        "obs_sync_mode": ob_mode
+                        "obs_sync_mode": ob_mode,
+                        "tracked_players": self.tracked_players
                     })
                     
                     await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Connected to AP as {self.slot} ({my_game})"})
@@ -379,6 +443,7 @@ async def main():
     parser.add_argument("--mode", default="all", choices=["all", "personal"])
     parser.add_argument("--game") # Optional hinted game
     parser.add_argument("--multi") # Comma separated multi-slots (Slot:Pass)
+    parser.add_argument("--tracked") # Comma separated tracked players
     args = parser.parse_args()
     
     kill_port(args.port)
@@ -396,6 +461,9 @@ async def main():
         # Ensure our main slot is in the profiles too
         if args.slot not in ap_client.profiles:
             ap_client.profiles[args.slot] = args.password or ""
+    
+    if args.tracked:
+        ap_client.tracked_players = [p.strip() for p in args.tracked.split(",") if p.strip()]
     
     # Define the websocket handler to have access to the client
     async def bridge_handler(websocket):

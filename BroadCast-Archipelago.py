@@ -8,8 +8,9 @@ import sys
 import platform
 import psutil
 
-# Settings file path
-SETTINGS_FILE = "broadcast_settings.json"
+# Settings and Base Path
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+SETTINGS_FILE = os.path.join(APP_DIR, "broadcast_settings.json")
 
 def save_settings(settings):
     try:
@@ -22,7 +23,7 @@ def load_settings():
     defaults = {
         "server": "archipelago.gg:", "slot": "", "password": "", "mode": "all",
         "win_w": 400, "win_h": 600, "win_x": -1, "win_y": -1, "display_index": 0,
-        "last_game": "", "multi_slots": "",
+        "last_game": "", "multi_slots": "", "tracked_players": "",
         "sync_mode": "all", "obs_sync_mode": "all", "enable_overlay": True, "enable_obs": False
     }
     if os.path.exists(SETTINGS_FILE):
@@ -99,8 +100,9 @@ class BroadcastLauncherApp:
         self.monitors = get_monitors()
         
         # Ensure logs directory exists
-        if not os.path.exists("logs"):
-            os.makedirs("logs")
+        self.logs_dir = os.path.join(APP_DIR, "logs")
+        if not os.path.exists(self.logs_dir):
+            os.makedirs(self.logs_dir)
         self.drag_start_x = 0
         self.drag_start_y = 0
         
@@ -150,6 +152,10 @@ class BroadcastLauncherApp:
         create_label("Multi-Slots (Format: Slot1:Pass1, Slot2:Pass2)").pack(anchor="w")
         self.watched_entry = create_entry(self.settings.get("multi_slots", ""))
         self.watched_entry.pack(pady=(0, 10), fill="x", ipady=5)
+        
+        create_label("Tracked Players (Mode Filtered - Comma separated)").pack(anchor="w")
+        self.tracked_entry = create_entry(self.settings.get("tracked_players", ""))
+        self.tracked_entry.pack(pady=(0, 10), fill="x", ipady=5)
 
         # Sync Modes
         sync_container = tk.Frame(left_pane, bg="#0d0d0f"); sync_container.pack(fill="x", pady=(0, 10))
@@ -159,6 +165,7 @@ class BroadcastLauncherApp:
         create_label("Overlay Sync", ov_f).pack(anchor="w")
         self.sync_var = tk.StringVar(value=self.settings.get("sync_mode", "personal"))
         tk.Radiobutton(ov_f, text="Personal", variable=self.sync_var, value="personal", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
+        tk.Radiobutton(ov_f, text="Filtered", variable=self.sync_var, value="filtered", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
         tk.Radiobutton(ov_f, text="Global", variable=self.sync_var, value="all", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
 
         # OBS Mode
@@ -166,6 +173,7 @@ class BroadcastLauncherApp:
         create_label("OBS Sync", obs_f).pack(anchor="w")
         self.obs_sync_var = tk.StringVar(value=self.settings.get("obs_sync_mode", "all"))
         tk.Radiobutton(obs_f, text="Personal", variable=self.obs_sync_var, value="personal", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
+        tk.Radiobutton(obs_f, text="Filtered", variable=self.obs_sync_var, value="filtered", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
         tk.Radiobutton(obs_f, text="Global", variable=self.obs_sync_var, value="all", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
 
         # Output Features
@@ -210,9 +218,22 @@ class BroadcastLauncherApp:
 
         self.update_preview()
 
+    def get_error_message(self, hex_code, p_name):
+        # 0xc0000142 is 3221225794 unsigned, or -1073741502 signed
+        msgs = {
+            "3221225794": "DLL Init Failed. Try restarting your PC or checking and installing 'Visual C++ Redistributable'.",
+            "3221225781": "Missing System DLL. Ensure you have the latest Windows Updates and C++ Runtimes.",
+            "1": "Script Error. Python or Node modules are missing. Try running INSTALLATION.bat.",
+            "9009": f"Command not found. Is {'Node.js' if 'Vite' in p_name or 'Overlay' in p_name else 'Python'} installed and in PATH?",
+            "3": "Path not found. The app couldn't find the 'broadcast-app' folder.",
+            "127": "Command not found (Linux/Unix).",
+            "-1073741502": "DLL Init Failed. Try restarting your PC or checking and installing 'Visual C++ Redistributable'."
+        }
+        return msgs.get(str(hex_code), "Unknown error. Check logs or contact support.")
+
     def open_logs_folder(self):
         try:
-            path = os.path.abspath("logs")
+            path = self.logs_dir
             if platform.system() == "Windows":
                  os.startfile(path)
             elif platform.system() == "Darwin":
@@ -378,7 +399,8 @@ class BroadcastLauncherApp:
                 "obs_sync_mode": self.obs_sync_var.get(),
                 "enable_overlay": self.use_overlay.get(),
                 "enable_obs": self.use_obs.get(),
-                "display_index": self.monitor_select.current()
+                "display_index": self.monitor_select.current(),
+                "tracked_players": self.tracked_entry.get()
             })
             if self.use_overlay.get():
                 self.settings.update({
@@ -403,6 +425,14 @@ class BroadcastLauncherApp:
         self.status_label.config(text="Status: Cleaning up...", fg="#ffaa00")
         self.root.update()
         
+        # Force delete dist folder to ensure we use latest dev code
+        try:
+            import shutil
+            dist_to_clean = os.path.join(APP_DIR, "broadcast-app", "dist")
+            if os.path.exists(dist_to_clean):
+                shutil.rmtree(dist_to_clean)
+        except: pass
+
         import time
         time.sleep(1) 
         
@@ -421,7 +451,11 @@ class BroadcastLauncherApp:
         py_cmd = "python3"
             
         def spawn_with_log(cmd, name, cwd=None):
-            log_path = f"logs/{name}.log"
+            if cwd:
+                cwd = os.path.join(APP_DIR, cwd)
+            else:
+                cwd = APP_DIR
+            log_path = os.path.join(self.logs_dir, f"{name}.log")
             f = open(log_path, "w", encoding="utf-8")
             self.log_files.append(f)
             env = os.environ.copy()
@@ -435,14 +469,19 @@ class BroadcastLauncherApp:
         if self.use_obs.get() or (self.use_overlay.get() and not has_build):
             spawn_with_log(["npx", "vite", "--no-open"], "vite", cwd="broadcast-app")
         
+        # Determine bridge mode: If EITHER is 'all' or 'filtered', bridge must be 'all' to get the data
         bridge_mode = "all"
         if self.settings.get("sync_mode") == "personal" and self.settings.get("obs_sync_mode") == "personal":
             bridge_mode = "personal"
         
-        bridge_cmd = [py_cmd, "-u", "broadcast/bridge.py", "--server", self.settings["server"], "--slot", self.settings["slot"], "--mode", bridge_mode]
+        bridge_script = os.path.join(APP_DIR, "broadcast", "bridge.py")
+        bridge_cmd = [py_cmd, "-u", bridge_script, "--server", self.settings["server"], "--slot", self.settings["slot"], "--mode", bridge_mode]
         if self.settings["password"]: bridge_cmd.extend(["--password", self.settings["password"]])
         if self.settings.get("last_game"): bridge_cmd.extend(["--game", self.settings["last_game"]])
         if self.settings.get("multi_slots"): bridge_cmd.extend(["--multi", self.settings["multi_slots"]])
+        
+        tracked = self.settings.get("tracked_players", "").strip()
+        if tracked: bridge_cmd.extend(["--tracked", tracked])
         
         try:
             self.procs.append(spawn_with_log(bridge_cmd, "bridge"))
@@ -465,7 +504,14 @@ class BroadcastLauncherApp:
         while self.is_running:
             for p in list(self.procs):
                 if p.poll() is not None and self.is_running:
-                    self.status_label.config(text=f"Status: Process Crashed! ({p.poll()})", fg="#ff5555")
+                    p_args = p.args if hasattr(p, 'args') else []
+                    p_name = "Unknown"
+                    if any("bridge.py" in str(a) for a in p_args): p_name = "Bridge"
+                    elif any("vite" in str(a) for a in p_args): p_name = "Vite Server"
+                    elif any("overlay" in str(a) for a in p_args): p_name = "Overlay"
+                    
+                    hint = self.get_error_message(p.poll(), p_name)
+                    self.status_label.config(text=f"Status: {p_name} Crashed! ({p.poll()})\n{hint}", fg="#ff5555", font=("Segoe UI", 8))
                     self.procs.remove(p) 
             time.sleep(2)
 

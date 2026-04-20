@@ -4,18 +4,21 @@ This system is a premium notification tool designed for **Archipelago Multiworld
 
 ## ✨ New Features & Updates
 
-### 🚀 Release 1.0.3 (Latest)
+### 🚀 Release 1.1.0 (Latest)
 - 🐧 **Universal Linux Compatibility**: Pre-configured with `--no-sandbox` to work across all major distributions without permission hurdles.
 - 👥 **Dynamic Multi-Slot Support**: Track multiple players simultaneously (Format: `Slot1:Pass, Slot2:Pass`) and switch between them instantly.
-- 🎥 **Enhanced OBS Integration**: Choose between **Global** and **Personal** personalization specifically for your stream overlay.
-- 🔍 **Monitoring & Diagnostics**: Built-in real-time logs and diagnostic tools to troubleshoot your connection.
-- ⚡ **Performance Optimized**: Locked at 30 FPS with background throttling and hardware acceleration bypass to ensure zero impact on your game.
-- 🛡️ **Enhanced Window Management**: Protection against automatic "snapping" to (0,0) coordinates on focus loss (common on Linux window managers).
+- 📡 **Remote Sync Control**: Change Sync Modes (All, Filtered, Personal) and manage tracked players directly from the overlay interface.
+- 🎥 **Enhanced OBS Integration**: Choose between **Global**, **Filtered**, and **Personal** synchronization specifically for your stream overlay.
+- 🔍 **Monitoring & Diagnostics**: Built-in real-time logs and diagnostic tools to troubleshoot connection and system health.
+- ⚡ **Performance Optimized**: Locked at 30 FPS with background throttling and hardware acceleration bypass.
+- 🛡️ **Enhanced Window Management**: Protection against automatic "snapping" to (0,0) coordinates on focus loss.
 
 ### 🌟 Core Features
 - 🖱️ **Interactive Screen Preview**: Drag and move your overlay window directly from the Control Center's mini-map preview.
 - 📍 **Smart Draggable Button**: A multi-purpose button to toggle history or move the window. It automatically jumps to the other side if pushed against a screen edge.
 - 🧪 **Integrated Testing Suite**: Instantly verify your layout with the "SEND TEST MESSAGES" or "TEST" buttons.
+- 📺 **Intelligent Multi-Monitor Logic**: Enhanced screen detection and automatic notification flipping based on window position.
+- 🖥️ **Hardware Acceleration Bypass**: Automatically disables GPU acceleration for the UI to prioritize your game's graphics card usage.
 
 ## 🛠️ How it works?
 
@@ -28,7 +31,7 @@ This is the visual "brain". This interface allows you to:
 - **Live Preview**: Drag the purple rectangle on the mini-map to position your overlay precisely.
 - **Connection**: Configure your connection information (Server, Slot, Password).
 - **Control**: Select which screen to use and trigger test notifications.
-- **Filtering**: Choose the filtering mode (see all items or only yours).
+- **Filtering**: Choose the filtering mode (All, Filtered, Personal).
 - **Monitoring**: See the status of the local bridge and Electron app.
 
 ### 2. The Bridge (`broadcast/bridge.py`)
@@ -36,9 +39,9 @@ This is the visual "brain". This interface allows you to:
 An invisible component running in the background:
 
 - It maintains the connection with the **Archipelago** server.
-- It translates technical server messages into readable notifications (e.g., "Link sent a Master Sword to Zelda").
-- It distributes this information to the visual part via a local WebSocket server.
-- It relays test triggers from the Control Center to all active displays.
+- It translates technical server messages into readable notifications.
+- It distributes this information via a local WebSocket server.
+- It relays configuration changes and test triggers between all connected displays.
 
 ### 3. The Broadcast App (`broadcast-app`)
 
@@ -66,12 +69,12 @@ Before launching the system for the first time, you must install the necessary d
 
 ### Standard Mode (Control Interface)
 
-
 1.  **Launch**: Execute the file `python3 BroadCast-Archipelago.py`.
 2.  **Configuration**:
     - Enter the server address (e.g., `archipelago.gg:38210`).
     - Enter your Slot name (player).
-    - **Multi-Slots**: (Optional) Enter other slots to track (Format: `Slot1:Pass, Slot2:Pass`). You'll be able to switch between them instantly in the history panel.
+    - **Multi-Slots**: (Optional) Enter other slots to track (Format: `Slot1:Pass, Slot2:Pass`).
+    - **Tracked Players**: (Optional) In Filtered mode, comma-separated list of players to track.
     - Adjust position by dragging the rectangle in the **SCREEN PREVIEW**.
 
 3.  **Start**: Click **START SYSTEM**.
@@ -89,11 +92,10 @@ Once you have configured your information via the Control Center, you no longer 
 
 ## 🎭 Tracking Modes & Personalization
 
-- **All Items (Global)**: Displays absolutely everything happening in the Multiworld (Ideal for commentators or chaos).
+- **All Items (Global)**: Displays absolutely everything happening in the Multiworld.
+- **Filtered Items**: Displays only items related to a specific list of players.
 - **My Items (Personal)**: Displays only items you send or receive.
-- **OBS Personalization**: You can now choose between Global or Personal filtering independently for your OBS source.
-- **OBS Mode**: Optimized for streamers. Use the local URL in an OBS Browser Source:
-  `http://localhost:5173/?mode=obs`
+- **Dynamic Control**: You can switch between these modes directly from the interactive history panel at any time.
 
 ---
 

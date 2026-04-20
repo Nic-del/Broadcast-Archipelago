@@ -30,8 +30,17 @@ try {
 }
 
 function getSettingsPath() {
+  // If running as a packaged AppImage, save settings in the same folder as the .AppImage file
+  if (process.env.APPIMAGE) {
+    return path.join(path.dirname(process.env.APPIMAGE), 'broadcast_settings.json');
+  }
+
+  // Fallback for other packaged formats (Windows exe, etc.)
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), 'broadcast_settings.json');
+  }
+
   const localPath = path.join(__dirname, '..', 'broadcast_settings.json');
-  // In AppImage, __dirname is read-only. We should also check the current working directory.
   const cwdPath = path.join(process.cwd(), 'broadcast_settings.json');
   
   if (fs.existsSync(cwdPath)) return cwdPath;

@@ -1,24 +1,7 @@
 node_modules/
-broadcast-app/node_modules/
-broadcast-app/dist/
+dist/
+dist-electron/
 .electron_data/
-
-# Logs and temporary files
-logs/
 *.log
-__pycache__/
-
-# Personal settings
 broadcast_settings.json
-.env
-
-# IDEs and OS files
-.vscode/
-.idea/
 .DS_Store
-Thumbs.db
-
-# Python virtual environments
-venv/
-.venv/
-env/

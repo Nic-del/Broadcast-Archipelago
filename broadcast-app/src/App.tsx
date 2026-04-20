@@ -707,10 +707,10 @@ const App: React.FC = () => {
                 )}
 
                 {/* 2. Main Viewer Selection (Personal/All Mode) */}
-                {overlayMode !== 'filtered' && (
+                {(overlayMode !== 'filtered' || obsMode !== 'filtered') && (
                   <div className="space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-accent-prog flex items-center gap-2">
-                      <Bell className="w-3 h-3" /> Overlay Viewer Selection
+                      <Bell className="w-3 h-3" /> Main Player Selection
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
                       {playerList.map(name => {

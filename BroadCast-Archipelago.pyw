@@ -20,7 +20,7 @@ def load_settings():
     defaults = {
         "server": "archipelago.gg:", "slot": "", "password": "", "mode": "all",
         "win_w": 400, "win_h": 600, "win_x": -1, "win_y": -1, "display_index": 0,
-        "last_game": "", "multi_slots": "",
+        "last_game": "", "multi_slots": "", "tracked_players": "",
         "sync_mode": "all", "obs_sync_mode": "all", "enable_overlay": True, "enable_obs": False
     }
     if os.path.exists(SETTINGS_FILE):
@@ -146,6 +146,10 @@ class BroadcastLauncherApp:
         create_label("Multi-Slots (Format: Slot1:Pass1, Slot2:Pass2)").pack(anchor="w")
         self.watched_entry = create_entry(self.settings.get("multi_slots", ""))
         self.watched_entry.pack(pady=(0, 10), fill="x", ipady=5)
+        
+        create_label("Tracked Players (Mode Filtered - Comma separated)").pack(anchor="w")
+        self.tracked_entry = create_entry(self.settings.get("tracked_players", ""))
+        self.tracked_entry.pack(pady=(0, 10), fill="x", ipady=5)
 
         # Sync Modes (Separated for Overlay and OBS)
         sync_container = tk.Frame(left_pane, bg="#0d0d0f"); sync_container.pack(fill="x", pady=(0, 10))
@@ -155,6 +159,7 @@ class BroadcastLauncherApp:
         create_label("Overlay Sync", ov_f).pack(anchor="w")
         self.sync_var = tk.StringVar(value=self.settings.get("sync_mode", "personal")) # Desktop default
         tk.Radiobutton(ov_f, text="Personal", variable=self.sync_var, value="personal", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
+        tk.Radiobutton(ov_f, text="Filtered", variable=self.sync_var, value="filtered", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
         tk.Radiobutton(ov_f, text="Global", variable=self.sync_var, value="all", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
 
         # OBS Mode
@@ -162,6 +167,7 @@ class BroadcastLauncherApp:
         create_label("OBS Sync", obs_f).pack(anchor="w")
         self.obs_sync_var = tk.StringVar(value=self.settings.get("obs_sync_mode", "all")) # OBS default
         tk.Radiobutton(obs_f, text="Personal", variable=self.obs_sync_var, value="personal", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
+        tk.Radiobutton(obs_f, text="Filtered", variable=self.obs_sync_var, value="filtered", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
         tk.Radiobutton(obs_f, text="Global", variable=self.obs_sync_var, value="all", bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", border=0, font=("Segoe UI", 8)).pack(side="left")
 
         # Output Features
@@ -403,7 +409,8 @@ class BroadcastLauncherApp:
                 "obs_sync_mode": self.obs_sync_var.get(),
                 "enable_overlay": self.use_overlay.get(),
                 "enable_obs": self.use_obs.get(),
-                "display_index": self.monitor_select.current()
+                "display_index": self.monitor_select.current(),
+                "tracked_players": self.tracked_entry.get()
             })
             
             # Dimensions only mandatory if Overlay is enabled
@@ -487,7 +494,7 @@ class BroadcastLauncherApp:
         if self.use_obs.get() or (self.use_overlay.get() and not has_build):
             self.procs.append(spawn_with_log(["cmd", "/c", "npx vite --no-open"], "vite", cwd="broadcast-app"))
         
-        # Determine bridge mode: If EITHER is 'all', bridge must be 'all' to get the data
+        # Determine bridge mode: If EITHER is 'all' or 'filtered', bridge must be 'all' to get the data
         bridge_mode = "all"
         if self.settings.get("sync_mode") == "personal" and self.settings.get("obs_sync_mode") == "personal":
             bridge_mode = "personal"
@@ -501,6 +508,9 @@ class BroadcastLauncherApp:
         
         multi = self.settings.get("multi_slots", "").strip()
         if multi: bridge_cmd.extend(["--multi", multi])
+        
+        tracked = self.settings.get("tracked_players", "").strip()
+        if tracked: bridge_cmd.extend(["--tracked", tracked])
         
         try:
             self.procs.append(spawn_with_log(bridge_cmd, "bridge"))

@@ -27,6 +27,8 @@ interface GameNotification {
   timestamp: string;
   my_alias?: string;
   raw_data?: Record<string, unknown>;
+  is_mine?: boolean;
+  is_test?: boolean;
 }
 
 interface DisplayInfo {

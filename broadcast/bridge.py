@@ -37,6 +37,7 @@ async def register_ui(websocket):
         c = websocket.ap_client
         # Load latest settings to sync the UI modes
         overlay_mode, obs_mode, tracked_players = "all", "all", []
+        ov_duration, ob_duration, ob_fade = 10, 0, False
         try:
             settings_path = "broadcast_settings.json"
             if os.path.exists(settings_path):
@@ -44,6 +45,9 @@ async def register_ui(websocket):
                     s = json.load(f)
                     overlay_mode = s.get("sync_mode", "all")
                     obs_mode = s.get("obs_sync_mode", "all")
+                    ov_duration = s.get("overlay_duration", 10)
+                    ob_duration = s.get("obs_duration", 15)
+                    ob_fade = s.get("obs_fade", False)
                     tracked_str = s.get("tracked_players", "")
                     if tracked_str:
                         tracked_players = [p.strip() for p in tracked_str.split(",") if p.strip()]
@@ -57,6 +61,9 @@ async def register_ui(websocket):
             "current_slot": c.slot,
             "overlay_sync_mode": overlay_mode,
             "obs_sync_mode": obs_mode,
+            "overlay_duration": ov_duration,
+            "obs_duration": ob_duration,
+            "obs_fade": ob_fade,
             "tracked_players": tracked_players
         }))
     
@@ -68,6 +75,29 @@ async def register_ui(websocket):
                     await broadcast_to_ui({"type": "clear_history"})
                 elif data.get("type") == "notification":
                     await broadcast_to_ui(data)
+                elif data.get("type") == "update_settings":
+                    try:
+                        settings_path = "broadcast_settings.json"
+                        settings = {}
+                        if os.path.exists(settings_path):
+                            with open(settings_path, "r") as f:
+                                settings = json.load(f)
+                        
+                        if "overlay_duration" in data: settings["overlay_duration"] = data["overlay_duration"]
+                        if "obs_duration" in data: settings["obs_duration"] = data["obs_duration"]
+                        if "obs_fade" in data: settings["obs_fade"] = data["obs_fade"]
+                        
+                        with open(settings_path, "w") as f:
+                            json.dump(settings, f, indent=4)
+                        
+                        # Broadcast updated settings to ALL clients
+                        await broadcast_to_ui({
+                            "type": "room_info",
+                            "overlay_duration": settings.get("overlay_duration", 10),
+                            "obs_duration": settings.get("obs_duration", 15),
+                            "obs_fade": settings.get("obs_fade", False)
+                        })
+                    except Exception as e: print(f"Error updating settings: {e}")
                 elif data.get("type") == "change_slot":
                     new_slot = data.get("slot")
                     source = "OBS/Stream" if data.get("is_stream") else "UI/Overlay"

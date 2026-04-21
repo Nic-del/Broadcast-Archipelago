@@ -167,13 +167,31 @@ const App: React.FC = () => {
   const [overlayMode, setOverlayMode] = useState<string>('all');
   const [obsMode, setObsMode] = useState<string>('all');
   const [currentSyncMode, setCurrentSyncMode] = useState<string>(syncMode);
+  const [overlayDuration, setOverlayDuration] = useState<number>(10);
+  const [obsDuration, setObsDuration] = useState<number>(15);
+  const [obsFade, setObsFade] = useState<boolean>(false);
   const syncModeRef = useRef<string>(syncMode);
   const trackedPlayersRef = useRef<string[]>(trackedPlayers);
+  const durationsRef = useRef({ overlay: 10, obs: 15, fade: false });
 
   // Sync refs with state
   useEffect(() => {
     syncModeRef.current = currentSyncMode;
   }, [currentSyncMode]);
+
+  useEffect(() => {
+    durationsRef.current = { overlay: overlayDuration, obs: obsDuration, fade: obsFade };
+    
+    // Retro-active cleanup for OBS mode when fade is toggled on
+    if (isStreamMode && obsFade && obsDuration > 0) {
+      const now = Date.now();
+      setNotifications(prev => prev.filter(n => {
+        const createdAt = (n as any).createdAt || now;
+        const elapsed = now - createdAt;
+        return elapsed < (obsDuration * 1000);
+      }));
+    }
+  }, [overlayDuration, obsDuration, obsFade, isStreamMode]);
 
   useEffect(() => {
     trackedPlayersRef.current = trackedPlayers;
@@ -214,6 +232,9 @@ const App: React.FC = () => {
             if (data.tracked_players) setTrackedPlayers(data.tracked_players);
             if (data.overlay_sync_mode) setOverlayMode(data.overlay_sync_mode);
             if (data.obs_sync_mode) setObsMode(data.obs_sync_mode);
+            if (data.overlay_duration !== undefined) setOverlayDuration(data.overlay_duration);
+            if (data.obs_duration !== undefined) setObsDuration(data.obs_duration);
+            if (data.obs_fade !== undefined) setObsFade(data.obs_fade);
             
             // Dynamic Mode Sync from Bridge
             const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
@@ -260,8 +281,9 @@ const App: React.FC = () => {
             const newNotif: GameNotification = {
               ...data,
               id: Math.random().toString(36).substr(2, 9),
-              timestamp: new Date().toLocaleTimeString()
-            };
+              timestamp: new Date().toLocaleTimeString(),
+              createdAt: Date.now()
+            } as any;
             
             setNotifications(prev => {
               const updated = [...prev, newNotif];
@@ -276,11 +298,14 @@ const App: React.FC = () => {
             });
 
             // Auto-remove overlay items
-            if (!isStreamMode) {
+            const duration = isStreamMode ? durationsRef.current.obs : durationsRef.current.overlay;
+            const shouldFade = !isStreamMode || durationsRef.current.fade;
+
+            if (shouldFade && duration > 0) {
               setTimeout(() => {
                 if (!isMounted) return;
                 setNotifications(prev => prev.filter(n => n.id !== newNotif.id));
-              }, 10000);
+              }, duration * 1000);
             }
           }
         } catch (e) { console.error(e); }
@@ -374,6 +399,15 @@ const App: React.FC = () => {
         type: 'update_sync_mode', 
         target, 
         mode 
+      }));
+    }
+  };
+
+  const updateTiming = (key: string, value: any) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ 
+        type: 'update_settings', 
+        [key]: value 
       }));
     }
   };
@@ -559,6 +593,62 @@ const App: React.FC = () => {
                       {m === 'personal' ? 'Perso' : m}
                     </button>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Notification Timings */}
+            <div className="space-y-4 bg-white/5 p-3 rounded-xl border border-white/5">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                Notification Timings
+              </h3>
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[9px] uppercase font-bold">
+                    <span className="text-accent-prog">Overlay Duration</span>
+                    <span>{overlayDuration}s</span>
+                  </div>
+                  <input 
+                    type="range" min="3" max="60" value={overlayDuration} 
+                    onChange={(e) => updateTiming('overlay_duration', parseInt(e.target.value))}
+                    className="w-full accent-accent-prog h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-2 border-t border-white/5 pt-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] uppercase font-bold text-accent-useful">OBS Auto-Hide</span>
+                      <span className="text-[8px] text-neutral-500 lowercase italic">Fade out messages in OBS</span>
+                    </div>
+                    <button 
+                      onClick={() => updateTiming('obs_fade', !obsFade)}
+                      className={cn(
+                        "w-8 h-4 rounded-full relative transition-colors duration-200",
+                        obsFade ? "bg-accent-useful" : "bg-neutral-800"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                        obsFade ? "left-4.5" : "left-0.5"
+                      )} />
+                    </button>
+                  </div>
+                  
+                  {obsFade && (
+                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1">
+                      <div className="flex justify-between text-[9px] uppercase font-bold">
+                        <span className="text-accent-useful">OBS Duration</span>
+                        <span>{obsDuration}s</span>
+                      </div>
+                      <input 
+                        type="range" min="3" max="60" value={obsDuration} 
+                        onChange={(e) => updateTiming('obs_duration', parseInt(e.target.value))}
+                        className="w-full accent-accent-useful h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -35,11 +35,14 @@ async def register_ui(websocket):
     # Immediately send the current room state if we are already connected to AP
     if hasattr(websocket, 'ap_client'):
         c = websocket.ap_client
-        # Load latest settings to sync the UI modes
+        # Use absolute paths for everything to be safe on Windows
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        root_dir = os.path.dirname(base_dir)
+        settings_path = os.path.join(root_dir, "broadcast_settings.json")
+        
         overlay_mode, obs_mode, tracked_players = "all", "all", []
         ov_duration, ob_duration, ob_fade = 10, 0, False
         try:
-            settings_path = "broadcast_settings.json"
             if os.path.exists(settings_path):
                 with open(settings_path, "r") as f:
                     s = json.load(f)
@@ -77,7 +80,10 @@ async def register_ui(websocket):
                     await broadcast_to_ui(data)
                 elif data.get("type") == "update_settings":
                     try:
-                        settings_path = "broadcast_settings.json"
+                        # Redefine settings_path to be safe
+                        base_dir = os.path.dirname(os.path.abspath(__file__))
+                        settings_path = os.path.join(os.path.dirname(base_dir), "broadcast_settings.json")
+                        
                         settings = {}
                         if os.path.exists(settings_path):
                             with open(settings_path, "r") as f:
@@ -132,7 +138,10 @@ async def register_ui(websocket):
                     new_mode = data.get("mode")
                     if target in ["overlay", "obs"] and new_mode in ["all", "personal", "filtered"]:
                         try:
-                            settings_path = "broadcast_settings.json"
+                            # Redefine settings_path to be safe
+                            base_dir = os.path.dirname(os.path.abspath(__file__))
+                            settings_path = os.path.join(os.path.dirname(base_dir), "broadcast_settings.json")
+                            
                             settings = {}
                             if os.path.exists(settings_path):
                                 with open(settings_path, "r") as f:
@@ -161,7 +170,10 @@ async def register_ui(websocket):
                 elif data.get("type") == "update_tracked_players":
                     players = data.get("players", [])
                     try:
-                        settings_path = "broadcast_settings.json"
+                        # Redefine settings_path to be safe
+                        base_dir = os.path.dirname(os.path.abspath(__file__))
+                        settings_path = os.path.join(os.path.dirname(base_dir), "broadcast_settings.json")
+                        
                         settings = {}
                         if os.path.exists(settings_path):
                             with open(settings_path, "r") as f:
@@ -401,15 +413,20 @@ class ArchipelagoClient:
                         self.slot_cache[self.slot] = my_game
                         self.save_cache()
                         
-                        # Load latest sync modes
+                        # Load latest sync modes and durations
                         ov_mode, ob_mode = "all", "all"
+                        ov_duration, ob_duration, ob_fade = 10, 15, False
                         try:
-                            settings_path = "broadcast_settings.json"
+                            base_dir = os.path.dirname(os.path.abspath(__file__))
+                            settings_path = os.path.join(os.path.dirname(base_dir), "broadcast_settings.json")
                             if os.path.exists(settings_path):
                                 with open(settings_path, "r") as f:
                                     s = json.load(f)
                                     ov_mode = s.get("sync_mode", "all")
                                     ob_mode = s.get("obs_sync_mode", "all")
+                                    ov_duration = s.get("overlay_duration", 10)
+                                    ob_duration = s.get("obs_duration", 15)
+                                    ob_fade = s.get("obs_fade", False)
                         except: pass
 
                         # Send full player list and profiles to UI
@@ -421,6 +438,9 @@ class ArchipelagoClient:
                             "current_slot": self.slot,
                             "overlay_sync_mode": ov_mode,
                             "obs_sync_mode": ob_mode,
+                            "overlay_duration": ov_duration,
+                            "obs_duration": ob_duration,
+                            "obs_fade": ob_fade,
                             "tracked_players": self.tracked_players
                         })
                         
@@ -428,7 +448,8 @@ class ArchipelagoClient:
                         
                         # Cache the successful game name in settings
                         try:
-                            settings_path = "broadcast_settings.json"
+                            base_dir = os.path.dirname(os.path.abspath(__file__))
+                            settings_path = os.path.join(os.path.dirname(base_dir), "broadcast_settings.json")
                             if os.path.exists(settings_path):
                                 with open(settings_path, "r") as f:
                                     settings = json.load(f)

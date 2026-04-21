@@ -236,7 +236,9 @@ class BroadcastLauncherApp:
         msg += "2. Ensure Node.js (v20+) and Python (3.12) are installed.\n"
         msg += "3. Don't move the app files out of their folders.\n"
         msg += "4. Check if an antivirus is blocking 'electron.exe'.\n"
-        msg += "5. If port 8089 is used by another app, the bridge will crash."
+        msg += "5. If port 8089 is used by another app, the bridge will crash.\n"
+        msg += "6. SSL Error? If using a local server, ensure you use 'localhost:port'.\n"
+        msg += "7. If using archipelago.gg, the address should be 'archipelago.gg:PORT'."
         messagebox.showinfo("Diagnostic Tool", msg)
 
     def on_monitor_change(self, event=None):

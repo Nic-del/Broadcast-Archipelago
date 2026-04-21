@@ -70,10 +70,16 @@ async def register_ui(websocket):
                     await broadcast_to_ui(data)
                 elif data.get("type") == "change_slot":
                     new_slot = data.get("slot")
+                    source = "OBS/Stream" if data.get("is_stream") else "UI/Overlay"
                     if new_slot:
+                        # Prevent redundant switches that cause disconnect loops
+                        if hasattr(websocket, 'ap_client') and websocket.ap_client.slot == new_slot and websocket.ap_client.is_connected:
+                            print(f"[{source}] Already connected to slot: {new_slot}, ignoring switch request.")
+                            continue
+                            
                         # Find the password for this slot if we have it
                         new_pass = websocket.ap_client.profiles.get(new_slot, "")
-                        print(f"Switching to slot: {new_slot}")
+                        print(f"[{source}] Switching to slot: {new_slot}")
                         if hasattr(websocket, 'ap_client'):
                             websocket.ap_client.slot = new_slot
                             websocket.ap_client.password = new_pass
@@ -206,39 +212,90 @@ class ArchipelagoClient:
         self.profiles = {} # slot -> password
         self.switching_slot = False
         self.tracked_players = []
+        
+        # Use absolute path for cache to be safe on Windows
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.cache_path = os.path.join(base_dir, "slot_cache.json")
+        self.slot_cache = {}
+        self.load_cache()
+
+    def load_cache(self):
+        try:
+            if os.path.exists(self.cache_path):
+                with open(self.cache_path, "r") as f:
+                    self.slot_cache = json.load(f)
+                    print(f"Loaded slot cache: {len(self.slot_cache)} entries", flush=True)
+        except Exception as e: 
+            print(f"Failed to load cache: {e}", flush=True)
+            self.slot_cache = {}
+
+    def save_cache(self):
+        try:
+            with open(self.cache_path, "w") as f:
+                json.dump(self.slot_cache, f, indent=4)
+                print(f"Saved cache: {self.slot} -> {self.slot_cache.get(self.slot)}", flush=True)
+        except Exception as e: 
+            print(f"Failed to save cache: {e}", flush=True)
+
+
 
     async def connect(self):
-        protocols = [f"wss://{self.raw_server}", f"ws://{self.raw_server}"]
-        success = False
-        for url in protocols:
-            if success: break
-            print(f"Connecting to {url}...", flush=True)
-            try:
-                # Archipelago DataPackages can be very large (>1MB), so we increase the max_size limit
-                async with websockets.connect(url, origin="http://localhost", ping_interval=20, ping_timeout=20, max_size=None) as ws:
-                    print(f"Connected to {url}!", flush=True)
-                    self.ws = ws
-                    self.is_connected = True
-                    self.switching_slot = False
-                    await self.listen()
-                    success = True 
-            except Exception as e:
-                if self.switching_slot:
-                    print(f"Switching slot to {self.slot}...")
-                else:
-                    print(f"Connection error or session ended: {e}", flush=True)
-                self.is_connected = False
-                if self.ws:
-                    try: await self.ws.close()
-                    except: pass
-                self.ws = None
+        # We only reset the hunting index when starting a fresh session or switching slots
+        self.current_game_index = 0
+        
+        while True:
+            is_switching = self.switching_slot
+            if is_switching:
+                self.current_game_index = 0 # Reset hunt on manual switch
+                self.switching_slot = False
             
-            if not success or self.switching_slot:
-                wait_time = 1 if self.switching_slot else 5
-                if not self.switching_slot: print(f"Reconnecting in {wait_time} seconds...", flush=True)
-                await asyncio.sleep(wait_time)
-                self.current_game_index = 0 
-                await self.connect()
+            # OPTIMIZATION: If localhost, try WS first to avoid SSL handshake delay/errors
+            is_local = "localhost" in self.raw_server or "127.0.0.1" in self.raw_server
+            if is_local:
+                protocols = [f"ws://{self.raw_server}", f"wss://{self.raw_server}"]
+            else:
+                protocols = [f"wss://{self.raw_server}", f"ws://{self.raw_server}"]
+                
+            success = False
+            for url in protocols:
+                if self.switching_slot: break
+                print(f"Connecting to {url}...", flush=True)
+                try:
+                    # increase max_size and use longer timeouts for large DataPackages
+                    async with websockets.connect(
+                        url, 
+                        origin="http://localhost", 
+                        ping_interval=30, 
+                        ping_timeout=30, 
+                        max_size=None
+                    ) as ws:
+                        print(f"Connected to {url}!", flush=True)
+                        self.ws = ws
+                        self.is_connected = True
+                        success = True
+                        
+                        # Reset internal names but NOT current_game_index (it might be in the middle of a hunt)
+                        self.player_names = {}
+                        self.slot_to_game = {}
+                        
+                        await self.listen()
+                        print("Session ended naturally.", flush=True)
+                        break 
+                except Exception as e:
+                    if not self.switching_slot:
+                        print(f"Connection attempt failed: {e}", flush=True)
+                    self.is_connected = False
+                    if self.ws:
+                        try: await self.ws.close()
+                        except: pass
+                    self.ws = None
+                
+                if success or self.switching_slot: break
+
+            # Determine wait time before retry
+            wait_time = 1 if self.switching_slot or is_switching else 5
+            await asyncio.sleep(wait_time)
+            # DO NOT reset self.current_game_index here, it must persist across reconnections during a hunt
 
     async def identify(self, game_name=""):
         hello = [{
@@ -249,91 +306,110 @@ class ArchipelagoClient:
         await self.ws.send(json.dumps(hello))
 
     async def listen(self):
-        async for message in self.ws:
-            packets = json.loads(message)
-            for packet in packets:
-                cmd = packet.get("cmd")
-                if cmd == "RoomInfo":
-                    self.available_games = packet.get("games", [])
-                    await self.ws.send(json.dumps([{"cmd": "GetDataPackage"}]))
-                    
-                    # If we already have a cached game name (from args), try it first
-                    initial_game = ""
-                    if hasattr(self, 'initial_game_hint') and self.initial_game_hint in self.available_games:
-                        initial_game = self.initial_game_hint
-                        # Remove it from the list so we don't try it twice if it fails
-                        self.available_games = [g for g in self.available_games if g != initial_game]
-                        self.available_games.insert(0, initial_game) # Move to front
-                    
-                    await self.identify(self.available_games[0] if self.available_games else "")
-                elif cmd == "DataPackage":
-                    data = packet.get("data", {})
-                    for game, game_data in data.get("games", {}).items():
-                        mapping = {str(v): k for k, v in game_data.get("item_name_to_id", {}).items()}
-                        self.item_maps[game] = mapping
-                elif cmd == "ConnectionRefused":
-                    errors = packet.get('errors', [])
-                    if "InvalidGame" in errors and self.current_game_index < len(self.available_games) - 1:
-                        # Silent hunt: don't print InvalidGame errors while we are still trying other games
-                        self.current_game_index += 1
-                        await self.identify(self.available_games[self.current_game_index])
-                    else:
-                        print(f"Connection refused: {errors}", flush=True)
-                        # Other errors (InvalidPassword, IncompatibleVersion, etc)
-                        await broadcast_to_ui({"type": "notification", "event": "error", "text": f"Connection Refused: {', '.join(errors)}"})
-                elif cmd == "Connected":
-                    # Find our own alias (the name we have on the server)
-                    our_slot_id = packet.get("slot")
-                    for p in packet.get("players", []):
-                        alias = p["alias"]
-                        self.player_names[str(p["slot"])] = alias
-                        if p["slot"] == our_slot_id: self.my_alias = alias
-                    
-                    # Store game mapping for each slot
-                    slot_info = packet.get("slot_info", {})
-                    for s_id, info in slot_info.items():
-                        self.slot_to_game[str(s_id)] = info.get("game", "Unknown")
-                    
-                    my_game = self.slot_to_game.get(str(our_slot_id), "Unknown")
-                    print(f"SUCCESS! Connected as {self.slot} (Game: {my_game})", flush=True)
-                    
-                    # Load latest sync modes
-                    ov_mode, ob_mode = "all", "all"
-                    try:
-                        settings_path = "broadcast_settings.json"
-                        if os.path.exists(settings_path):
-                            with open(settings_path, "r") as f:
-                                s = json.load(f)
-                                ov_mode = s.get("sync_mode", "all")
-                                ob_mode = s.get("obs_sync_mode", "all")
-                    except: pass
+        try:
+            # Request DataPackage only once at the start of the session
+            await self.ws.send(json.dumps([{"cmd": "GetDataPackage"}]))
+            
+            async for message in self.ws:
+                packets = json.loads(message)
+                for packet in packets:
+                    cmd = packet.get("cmd")
+                    if cmd == "RoomInfo":
+                        self.available_games = packet.get("games", [])
+                        
+                        # Priority 1: Cache for this specific slot name (Most accurate)
+                        # Priority 2: Hint from command line (Global last successful)
+                        initial_game = ""
+                        if self.slot in self.slot_cache and self.slot_cache[self.slot] in self.available_games:
+                            initial_game = self.slot_cache[self.slot]
+                        elif hasattr(self, 'initial_game_hint') and self.initial_game_hint in self.available_games:
+                            initial_game = self.initial_game_hint
+                        
+                        if initial_game:
+                            # Move the initial game to the front of available_games to try it first
+                            self.available_games = [g for g in self.available_games if g != initial_game]
+                            self.available_games.insert(0, initial_game)
+                        
+                        # Safety check for index
+                        if self.current_game_index >= len(self.available_games):
+                            self.current_game_index = 0
+                            
+                        await self.identify(self.available_games[self.current_game_index] if self.available_games else "")
 
-                    # Send full player list and profiles to UI
-                    await broadcast_to_ui({
-                        "type": "room_info", 
-                        "players": list(self.player_names.values()),
-                        "current_player": self.my_alias,
-                        "profiles": list(self.profiles.keys()),
-                        "current_slot": self.slot,
-                        "overlay_sync_mode": ov_mode,
-                        "obs_sync_mode": ob_mode,
-                        "tracked_players": self.tracked_players
-                    })
-                    
-                    await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Connected to AP as {self.slot} ({my_game})"})
-                    
-                    # Cache the successful game name in settings
-                    try:
-                        settings_path = "broadcast_settings.json"
-                        if os.path.exists(settings_path):
-                            with open(settings_path, "r") as f:
-                                settings = json.load(f)
-                            settings["last_game"] = my_game
-                            with open(settings_path, "w") as f:
-                                json.dump(settings, f, indent=4)
-                    except: pass
-                elif cmd == "PrintJSON":
-                    await self.handle_print_json(packet)
+                    elif cmd == "DataPackage":
+                        data = packet.get("data", {})
+                        for game, game_data in data.get("games", {}).items():
+                            mapping = {str(v): k for k, v in game_data.get("item_name_to_id", {}).items()}
+                            self.item_maps[game] = mapping
+                    elif cmd == "ConnectionRefused":
+                        errors = packet.get('errors', [])
+                        if "InvalidGame" in errors and self.current_game_index < len(self.available_games) - 1:
+                            # Silent hunt: don't print InvalidGame errors while we are still trying other games
+                            self.current_game_index += 1
+                            await self.identify(self.available_games[self.current_game_index])
+                        else:
+                            print(f"Connection refused: {errors}", flush=True)
+                            # Other errors (InvalidPassword, IncompatibleVersion, etc)
+                            await broadcast_to_ui({"type": "notification", "event": "error", "text": f"Connection Refused: {', '.join(errors)}"})
+                    elif cmd == "Connected":
+                        # Find our own alias (the name we have on the server)
+                        our_slot_id = packet.get("slot")
+                        for p in packet.get("players", []):
+                            alias = p["alias"]
+                            self.player_names[str(p["slot"])] = alias
+                            if p["slot"] == our_slot_id: self.my_alias = alias
+                        
+                        # Store game mapping for each slot
+                        slot_info = packet.get("slot_info", {})
+                        for s_id, info in slot_info.items():
+                            self.slot_to_game[str(s_id)] = info.get("game", "Unknown")
+                        
+                        my_game = self.slot_to_game.get(str(our_slot_id), "Unknown")
+                        print(f"SUCCESS! Connected as {self.slot} (Game: {my_game})", flush=True)
+                        
+                        # Update slot cache
+                        self.slot_cache[self.slot] = my_game
+                        self.save_cache()
+                        
+                        # Load latest sync modes
+                        ov_mode, ob_mode = "all", "all"
+                        try:
+                            settings_path = "broadcast_settings.json"
+                            if os.path.exists(settings_path):
+                                with open(settings_path, "r") as f:
+                                    s = json.load(f)
+                                    ov_mode = s.get("sync_mode", "all")
+                                    ob_mode = s.get("obs_sync_mode", "all")
+                        except: pass
+
+                        # Send full player list and profiles to UI
+                        await broadcast_to_ui({
+                            "type": "room_info", 
+                            "players": list(self.player_names.values()),
+                            "current_player": self.my_alias,
+                            "profiles": list(self.profiles.keys()),
+                            "current_slot": self.slot,
+                            "overlay_sync_mode": ov_mode,
+                            "obs_sync_mode": ob_mode,
+                            "tracked_players": self.tracked_players
+                        })
+                        
+                        await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Connected to AP as {self.slot} ({my_game})"})
+                        
+                        # Cache the successful game name in settings
+                        try:
+                            settings_path = "broadcast_settings.json"
+                            if os.path.exists(settings_path):
+                                with open(settings_path, "r") as f:
+                                    settings = json.load(f)
+                                settings["last_game"] = my_game
+                                with open(settings_path, "w") as f:
+                                    json.dump(settings, f, indent=4)
+                        except: pass
+                    elif cmd == "PrintJSON":
+                        await self.handle_print_json(packet)
+        except Exception as e:
+            print(f"BRIDGE ERROR in listen loop: {e}", flush=True)
 
     async def handle_print_json(self, packet):
         msg_type = packet.get("type", "Unknown")

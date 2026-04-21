@@ -337,7 +337,11 @@ const App: React.FC = () => {
 
   const switchSlot = (slot: string) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'change_slot', slot: slot }));
+      socketRef.current.send(JSON.stringify({ 
+        type: 'change_slot', 
+        slot: slot,
+        is_stream: isStreamMode 
+      }));
       setCurrentSlot(slot); // Immediate visual feedback
     }
   };

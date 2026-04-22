@@ -12,10 +12,30 @@ import psutil
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 SETTINGS_FILE = os.path.join(APP_DIR, "broadcast_settings.json")
 
-def save_settings(settings):
+def save_settings(gui_settings):
     try:
+        # 1. Load the REAL state from the disk right now
+        disk_settings = {}
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                try:
+                    disk_settings = json.load(f)
+                except: pass
+        
+        # 2. Only update keys that are actually managed by the GUI
+        gui_keys = [
+            "server", "slot", "password", "multi_slots", "sync_mode", 
+            "obs_sync_mode", "enable_overlay", "enable_obs", "display_index",
+            "tracked_players", "win_w", "win_h", "win_x", "win_y"
+        ]
+        
+        for k in gui_keys:
+            if k in gui_settings:
+                disk_settings[k] = gui_settings[k]
+        
+        # 3. Save the merged result
         with open(SETTINGS_FILE, "w") as f:
-            json.dump(settings, f, indent=4)
+            json.dump(disk_settings, f, indent=4)
     except Exception as e:
         print(f"Error saving settings: {e}")
 
@@ -24,7 +44,8 @@ def load_settings():
         "server": "archipelago.gg:", "slot": "", "password": "", "mode": "all",
         "win_w": 400, "win_h": 600, "win_x": -1, "win_y": -1, "display_index": 0,
         "last_game": "", "multi_slots": "", "tracked_players": "",
-        "sync_mode": "all", "obs_sync_mode": "all", "enable_overlay": True, "enable_obs": False
+        "sync_mode": "all", "obs_sync_mode": "all", "enable_overlay": True, "enable_obs": False,
+        "overlay_duration": 10, "obs_duration": 15, "obs_fade": False
     }
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -249,8 +270,9 @@ class BroadcastLauncherApp:
         msg += "3. For notifications to work, ensure 'python3' is in your PATH.\n"
         msg += "4. If UI doesn't appear, check logs for Electron/Node errors.\n"
         msg += "5. Fixed: Added '--no-sandbox' to prevent SUID helper errors.\n"
-        msg += "6. Port 8089 is used for communication. Ensure it is free."
-
+        msg += "6. Port 8089 is used for communication. Ensure it is free.\n"
+        msg += "7. SSL Error? If using a local server, ensure you use 'localhost:port'.\n"
+        msg += "8. If using archipelago.gg, the address should be 'archipelago.gg:PORT'."
         messagebox.showinfo("Diagnostic Tool", msg)
 
     def on_monitor_change(self, event=None):

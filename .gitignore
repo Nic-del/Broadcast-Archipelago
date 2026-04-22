@@ -5,3 +5,4 @@ dist-electron/
 *.log
 broadcast_settings.json
 .DS_Store
+broadcast/slot_cache.json

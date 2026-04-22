@@ -1,74 +1,39 @@
 # 🚀 BroadCast Archipelago - Universal Premium Overlay
 
-BroadCast Archipelago est un outil de notification haut de gamme conçu pour les sessions **Archipelago Multiworld**. Il affiche en temps réel les objets envoyés et reçus avec une esthétique moderne, fluide et entièrement personnalisable.
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
+[![Electron](https://img.shields.io/badge/Electron-Latest-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
+
+**BroadCast Archipelago** is a premium notification suite designed for **Archipelago Multiworld** sessions. It provides real-time tracking of sent and received items with a modern, fluid aesthetic that is entirely customizable.
 
 ---
 
-## ✨ Nouvelles Fonctionnalités (v1.0.4)
+## ✨ New Features (v1.0.4)
 
-### 👥 Filtrage Intelligent & Suivi par Joueur
-- **Mode Filtered** : Marre du spam dans les gros Multiworlds ? Sélectionnez précisément les joueurs que vous souhaitez "suivre".
-- **Tracked Players** : Gérez votre liste de suivi directement depuis l'overlay ou via le lanceur.
-- **Réduction du Bruit** : Filtrez les notifications pour ne voir que ce qui compte pour vous ou votre groupe.
+### 👥 Smart Filtering & Player Tracking
+- **Filtered Mode**: Tired of spam in massive Multiworlds? Precisely select which players you want to "follow".
+- **Tracked Players**: Manage your tracking list directly from the overlay or via the launcher.
+- **Noise Reduction**: Filter notifications to see only what matters to you or your group.
 
-### ⚙️ Panneau de Contrôle In-Overlay
-- **Réglages en Direct** : Plus besoin de relancer l'app ! Changez votre mode de synchronisation (**Global**, **Personal**, **Filtered**) via l'icône d'engrenage sur l'overlay.
-- **Double Synchro** : Configurez des modes différents pour votre **Overlay Bureau** et votre **Source Navigateur OBS**.
-- **Gestion des Slots** : Changez de profil (Slot) instantanément sans déconnexion manuelle.
-
----
-
-## 🐧 Spécificités Linux & Steam Deck (Bazzite)
-Cette édition est optimisée pour les distributions Linux, y compris les systèmes immuables comme **Bazzite** ou **SteamOS** :
-- 🏗️ **Mode Hybride** : Support du serveur OBS via Python natif si Node.js n'est pas disponible.
-- 🛡️ **Sandbox Bypass** : Pré-configuré avec `--no-sandbox` pour éviter les erreurs de SUID sur Linux.
-- 📦 **AppImage Support** : Détection automatique des builds AppImage pour une installation sans dépendances.
+### ⚙️ In-Overlay Control Center
+- **Live Settings**: No need to restart the app! Change your sync mode (**Global**, **Personal**, **Filtered**) via the gear icon on the overlay.
+- **Dual Sync**: Configure different modes for your **Desktop Overlay** and your **OBS Browser Source**.
+- **Slot Management**: Switch profiles (Slots) instantly without manual disconnection.
+- **Notification Timings**: Adjust how long messages stay on screen and toggle auto-hide for OBS.
 
 ---
 
-## 🛠️ Architecture du Système
-
-1.  **Control Center (`BroadCast-Archipelago.py`)** : L'interface de configuration visuelle pour positionner l'overlay et régler la connexion.
-2.  **The Bridge (`broadcast/bridge.py`)** : Le cœur du système qui maintient la connexion avec le serveur Archipelago et gère le filtrage des données.
-3.  **Broadcast App (`broadcast-app`)** : La couche visuelle (Vite + React + Framer Motion) offrant des animations fluides à 60 FPS.
-
----
-
-## ⚙️ Installation
-
-### Windows
-1. Lancez `INSTALLATION.bat` pour installer Python et les dépendances Node.js.
-2. Utilisez `BroadCast-Archipelago.py` pour configurer vos accès.
-
-### Linux / Steam Deck
-1. Donnez les permissions d'exécution : `chmod +x INSTALLATION.sh`
-2. Lancez `./INSTALLATION.sh`.
-3. Lancez le système avec `python3 BroadCast-Archipelago.py`.
+## 🐧 Linux & Steam Deck (Bazzite) Specifics
+This edition is optimized for Linux distributions, including immutable systems like **Bazzite** or **SteamOS**:
+- 🏗️ **Hybrid Mode**: Supports OBS server via native Python if Node.js is not available.
+- 🛡️ **Sandbox Bypass**: Pre-configured with `--no-sandbox` to avoid SUID errors on Linux.
+- 📦 **AppImage Support**: Automatic detection of AppImage builds for dependency-free installation.
 
 ---
 
-## 🚀 Utilisation Rapide
+## 🛠️ System Architecture
 
-> [!TIP]
-> **Mode Headless** : Une fois configuré, vous pouvez lancer le système instantanément sans interface de contrôle via :
-> `python3 start_cli.py` (Linux) ou `start_cli.bat` (Windows).
-
-### Modes de Synchronisation :
-- **All Items (Global)** : Affiche absolument tout le trafic du Multiworld.
-- **Filtered Items** : Affiche uniquement les objets des joueurs dans votre "Tracked List".
-- **My Items (Personal)** : Affiche uniquement ce que vous envoyez ou recevez.
-
----
-
-## 📝 Pré-requis
-- **Python 3.12+**
-- **Node.js 20+** (Recommandé pour l'overlay dynamique)
-- **Visual C++ Redistributable** (Pour Windows)
-
----
-
-<div align="center">
-  <img width="400" alt="Capture d'écran 1" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" />
-  <img width="300" alt="Capture d'écran 2" src="https://github.com/user-attachments/assets/2268cf3b-ff7b-4131-a49a-4ec43cd16164" />
-</div>
-
+1.  **Control Center (`BroadCast-Archipelago.py`)**: Visual configuration interface to position the overlay and adjust connection settings.
+2.  **The Bridge (`broadcast/bridge.py`)**: The heart of the system that maintains the connection with the Archipelago server and handles data filtering.
+3.  **Broadcast App (`broadcast-app`)**: The visual layer (Vite + React + Framer Motion) providing smooth 60 FPS animations.

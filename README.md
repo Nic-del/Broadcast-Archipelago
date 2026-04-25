@@ -43,7 +43,7 @@ This edition is fully optimized for Linux distributions, including immutable sys
 
 ### Windows
 1. Run `INSTALLATION.bat` to install Python and Node.js dependencies.
-2. Use `BroadCast-Archipelago.py` to configure your access.
+2. Use `BroadCast-Archipelago.pyw` to configure your access.
 
 ### Linux / Steam Deck
 1. Grant execution permissions: `chmod +x INSTALLATION.sh`

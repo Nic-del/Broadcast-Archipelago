@@ -63,6 +63,11 @@ This edition is fully optimized for Linux distributions, including immutable sys
 - **Filtered Items**: Displays only items from players in your "Tracked List".
 - **My Items (Personal)**: Displays only what you send or receive.
 
+### 📺 OBS Integration
+- **Browser Source URL**: `http://localhost:5173/?view=obs`
+- **Recommended Size**: 400x600 (or match your Overlay dimensions)
+
+
 ---
 
 ## 📝 Prerequisites

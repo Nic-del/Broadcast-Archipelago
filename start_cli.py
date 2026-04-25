@@ -51,7 +51,12 @@ def main():
     parser.add_argument("--server", help="Archipelago server address (e.g., archipelago.gg:12345)")
     parser.add_argument("--slot", help="Slot name")
     parser.add_argument("--password", help="Server password")
-    parser.add_argument("--mode", choices=["all", "personal", "obs"], help="Tracking mode (alias for sync_mode)")
+    parser.add_argument("--mode", choices=["all", "personal", "obs", "filtered"], help="Tracking mode (alias for sync_mode)")
+    parser.add_argument("--obs", action="store_true", help="Enable OBS Web Server")
+    parser.add_argument("--no-obs", action="store_true", help="Disable OBS Web Server")
+    parser.add_argument("--obs-mode", choices=["all", "personal", "filtered"], help="Tracking mode for OBS specifically")
+    parser.add_argument("--multi", help="Multi-slots (Slot1:Pass1, Slot2:Pass2)")
+    parser.add_argument("--tracked", help="Tracked players list (comma separated)")
     parser.add_argument("--overlay", action="store_true", help="Force enable overlay")
     parser.add_argument("--no-overlay", action="store_true", help="Force disable overlay")
     
@@ -67,12 +72,20 @@ def main():
     
     # Map --mode argument to sync_mode
     if args.mode:
-        settings["sync_mode"] = args.mode
-        # If user specifies 'obs' mode in CLI, we assume they want OBS features enabled
         if args.mode == "obs":
             settings["enable_obs"] = True
+            # We don't change sync_mode if it was just 'obs' to enable features,
+            # unless sync_mode isn't set yet.
+        else:
+            settings["sync_mode"] = args.mode
         updated = True
         
+    if args.obs: settings["enable_obs"] = True; updated = True
+    if args.no_obs: settings["enable_obs"] = False; updated = True
+    if args.obs_mode: settings["obs_sync_mode"] = args.obs_mode; updated = True
+    if args.multi: settings["multi_slots"] = args.multi; updated = True
+    if args.tracked: settings["tracked_players"] = args.tracked; updated = True
+    
     if args.overlay: settings["enable_overlay"] = True; updated = True
     if args.no_overlay: settings["enable_overlay"] = False; updated = True
     
@@ -116,8 +129,15 @@ def main():
         
         # 2. Start Bridge
         print("[2/3] Starting AP Bridge Connection...")
+        
+        # Determine bridge mode: If EITHER is 'all' or 'filtered', bridge must be 'all' to get the data
+        # This logic matches BroadCast-Archipelago.pyw
+        bridge_mode = "all"
+        if settings.get("sync_mode") == "personal" and settings.get("obs_sync_mode", "all") == "personal":
+            bridge_mode = "personal"
+            
         bridge_script = os.path.join(SCRIPT_DIR, "broadcast", "bridge.py")
-        bridge_cmd = [sys.executable, "-u", bridge_script, "--server", settings["server"], "--slot", settings["slot"], "--mode", sync_mode]
+        bridge_cmd = [sys.executable, "-u", bridge_script, "--server", settings["server"], "--slot", settings["slot"], "--mode", bridge_mode]
         
         if settings.get("password"):
             bridge_cmd.extend(["--password", settings["password"]])
@@ -125,6 +145,8 @@ def main():
             bridge_cmd.extend(["--game", settings["last_game"]])
         if settings.get("multi_slots"):
             bridge_cmd.extend(["--multi", settings["multi_slots"]])
+        if settings.get("tracked_players"):
+            bridge_cmd.extend(["--tracked", settings["tracked_players"]])
             
         procs.append(subprocess.Popen(bridge_cmd))
         

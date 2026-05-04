@@ -6,3 +6,4 @@ dist-electron/
 broadcast_settings.json
 .DS_Store
 broadcast/slot_cache.json
+broadcast_avatars.json

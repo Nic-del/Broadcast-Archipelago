@@ -56,6 +56,15 @@ async def register_ui(websocket):
                         tracked_players = [p.strip() for p in tracked_str.split(",") if p.strip()]
         except: pass
 
+        # Load avatar settings
+        avatar_settings = {}
+        avatar_path = os.path.join(root_dir, "broadcast_avatars.json")
+        try:
+            if os.path.exists(avatar_path):
+                with open(avatar_path, "r") as f:
+                    avatar_settings = json.load(f)
+        except: pass
+
         await websocket.send(json.dumps({
             "type": "room_info", 
             "players": list(c.player_names.values()),
@@ -67,8 +76,28 @@ async def register_ui(websocket):
             "overlay_duration": ov_duration,
             "obs_duration": ob_duration,
             "obs_fade": ob_fade,
-            "tracked_players": tracked_players
+            "hint_points": c.hint_points,
+            "hint_cost": c.hint_cost,
+            "tracked_players": tracked_players,
+            "custom_mode_overlay": avatar_settings.get("custom_mode_overlay", False),
+            "custom_mode_obs": avatar_settings.get("custom_mode_obs", False),
+            "player_avatars": avatar_settings.get("player_avatars", {}),
+            "friends_library": avatar_settings.get("friends_library", {})
         }))
+
+        # Also send item list if we have it (Filtered for current game)
+        if hasattr(websocket, 'ap_client'):
+            await websocket.ap_client.broadcast_current_game_data(websocket)
+            
+            # Send cached hints immediately if we have them
+            if hasattr(websocket.ap_client, 'cached_hints') and websocket.ap_client.cached_hints:
+                print(f"DEBUG: Sending {len(websocket.ap_client.cached_hints)} cached hints to new UI client.")
+                await websocket.send(json.dumps({
+                    "type": "hint_list",
+                    "hints": websocket.ap_client.cached_hints
+                }))
+            else:
+                print("DEBUG: No cached hints to send to new UI client.")
     
     try:
         async for message in websocket:
@@ -104,6 +133,34 @@ async def register_ui(websocket):
                             "obs_fade": settings.get("obs_fade", False)
                         })
                     except Exception as e: print(f"Error updating settings: {e}")
+                elif data.get("type") == "update_avatar_data":
+                    try:
+                        base_dir = os.path.dirname(os.path.abspath(__file__))
+                        avatar_path = os.path.join(os.path.dirname(base_dir), "broadcast_avatars.json")
+                        
+                        avatar_settings = {}
+                        if os.path.exists(avatar_path):
+                            with open(avatar_path, "r") as f:
+                                avatar_settings = json.load(f)
+                        
+                        # Update specific keys
+                        if "custom_mode_overlay" in data: avatar_settings["custom_mode_overlay"] = data["custom_mode_overlay"]
+                        if "custom_mode_obs" in data: avatar_settings["custom_mode_obs"] = data["custom_mode_obs"]
+                        if "player_avatars" in data: avatar_settings["player_avatars"] = data["player_avatars"]
+                        if "friends_library" in data: avatar_settings["friends_library"] = data["friends_library"]
+                        
+                        with open(avatar_path, "w") as f:
+                            json.dump(avatar_settings, f) # No indent for large data
+                        
+                        # Broadcast update to all
+                        update_msg = {"type": "avatar_sync"}
+                        if "custom_mode_overlay" in data: update_msg["custom_mode_overlay"] = data["custom_mode_overlay"]
+                        if "custom_mode_obs" in data: update_msg["custom_mode_obs"] = data["custom_mode_obs"]
+                        if "player_avatars" in data: update_msg["player_avatars"] = data["player_avatars"]
+                        if "friends_library" in data: update_msg["friends_library"] = data["friends_library"]
+                        
+                        await broadcast_to_ui(update_msg)
+                    except Exception as e: print(f"Error updating avatar data: {e}")
                 elif data.get("type") == "change_slot":
                     new_slot = data.get("slot")
                     source = "OBS/Stream" if data.get("is_stream") else "UI/Overlay"
@@ -123,16 +180,19 @@ async def register_ui(websocket):
                             if websocket.ap_client.ws:
                                 await websocket.ap_client.ws.close()
                 elif data.get("type") == "change_player":
-                    new_alias = data.get("player")
-                    if new_alias:
-                        # Find the slot ID for this alias if we can
-                        # But mostly we just need the alias for filtering
-                        print(f"Switching main player to: {new_alias}")
-                        # We need access to the ArchipelagoClient instance to change its alias
-                        # I'll pass it in register_ui or make it global
-                        if hasattr(websocket, 'ap_client'):
-                            websocket.ap_client.my_alias = new_alias
-                            await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Tracking player: {new_alias}"})
+                    c = websocket.ap_client
+                    new_player = data.get("player")
+                    if new_player:
+                        # Treat player change as a full slot switch/reconnection
+                        c.slot = new_player
+                        c.my_alias = new_player
+                        c.switching_slot = True
+                        # Update cache so this player is remembered for this slot
+                        c.slot_cache[c.slot] = c.my_alias
+                        c.save_cache()
+                        if c.ws:
+                            await c.ws.close()
+                            await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Tracking player: {new_player}"})
                 elif data.get("type") == "update_sync_mode":
                     target = data.get("target") # "overlay" or "obs"
                     new_mode = data.get("mode")
@@ -221,6 +281,19 @@ async def register_ui(websocket):
                             "is_test": True
                         })
                         await asyncio.sleep(0.1)
+                elif data.get("type") == "refresh_hints":
+                    if hasattr(websocket, 'ap_client') and websocket.ap_client.ws:
+                        c = websocket.ap_client
+                        debug_text = "Bridge: Manual hint refresh requested..."
+                        print(debug_text)
+                        print(debug_text)
+                        keys = [c.hint_key]
+                        await c.ws.send(json.dumps([{"cmd": "Get", "keys": keys}]))
+                elif data.get("type") == "request_hint":
+                    item = data.get("item")
+                    if item and hasattr(websocket, 'ap_client') and websocket.ap_client.ws:
+                        print(f"Requesting hint for: {item}")
+                        await websocket.ap_client.ws.send(json.dumps([{"cmd": "Say", "text": f"!hint {item}"}]))
             except: pass
     except: pass
     finally: UI_CLIENTS.remove(websocket)
@@ -231,6 +304,8 @@ async def broadcast_to_ui(message):
         for client in list(UI_CLIENTS):
             try: await client.send(log_msg)
             except: pass
+    
+    # Internal log file only
     try:
         with open("broadcast/bridge_notifications.log", "a", encoding="utf-8") as f:
             f.write(log_msg + "\n")
@@ -254,6 +329,16 @@ class ArchipelagoClient:
         self.profiles = {} # slot -> password
         self.switching_slot = False
         self.tracked_players = []
+        self.team = 0
+        self.location_maps = {}
+        self.item_groups = {}
+        self.location_groups = {}
+        self.hint_key = ""
+        self.all_game_data = {} # Raw data from DataPackage
+        self.hint_points = 0
+        self.hint_cost = 0
+        self.cached_hints = []
+        self.slot_id = 0
         
         # Use absolute path for cache to be safe on Windows
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -343,7 +428,7 @@ class ArchipelagoClient:
         hello = [{
             "cmd": "Connect", "password": self.password, "game": game_name,
             "name": self.slot, "items_handling": 7, "uuid": "ArchipelagoBroadcastBridge",
-            "tags": ["Tracker"], "version": AP_VERSION
+            "tags": ["Tracker", "Text"], "version": AP_VERSION
         }]
         await self.ws.send(json.dumps(hello))
 
@@ -356,8 +441,16 @@ class ArchipelagoClient:
                 packets = json.loads(message)
                 for packet in packets:
                     cmd = packet.get("cmd")
+                    # Log raw commands for debugging
+                    try:
+                        with open("broadcast/bridge_notifications.log", "a", encoding="utf-8") as f:
+                            f.write(f"AP_CMD: {cmd} {json.dumps(packet)}\n")
+                    except: pass
+                    
                     if cmd == "RoomInfo":
                         self.available_games = packet.get("games", [])
+                        self.hint_cost = packet.get("hint_cost", 0)
+                        await broadcast_to_ui({"type": "hint_stats", "points": self.hint_points, "cost": self.hint_cost})
                         
                         # Priority 1: Cache for this specific slot name (Most accurate)
                         # Priority 2: Hint from command line (Global last successful)
@@ -378,11 +471,30 @@ class ArchipelagoClient:
                             
                         await self.identify(self.available_games[self.current_game_index] if self.available_games else "")
 
+                    elif cmd == "RoomUpdate":
+                        if "hint_points" in packet:
+                            self.hint_points = packet["hint_points"]
+                            await broadcast_to_ui({"type": "hint_stats", "points": self.hint_points, "cost": self.hint_cost})
+                        if "hint_cost" in packet:
+                            self.hint_cost = packet["hint_cost"]
+                            await broadcast_to_ui({"type": "hint_stats", "points": self.hint_points, "cost": self.hint_cost})
+                            
                     elif cmd == "DataPackage":
-                        data = packet.get("data", {})
-                        for game, game_data in data.get("games", {}).items():
-                            mapping = {str(v): k for k, v in game_data.get("item_name_to_id", {}).items()}
-                            self.item_maps[game] = mapping
+                        self.all_game_data = packet.get("data", {}).get("games", {})
+                        
+                        # Process item maps for all games (needed for hint translation)
+                        for game, game_data in self.all_game_data.items():
+                            item_map = game_data.get("item_name_to_id", {})
+                            self.item_maps[game] = {str(v): k for k, v in item_map.items()}
+                            
+                            loc_map = game_data.get("location_name_to_id", {})
+                            self.location_maps[game] = {str(v): k for k, v in loc_map.items()}
+
+                        print(f"DataPackage received: {len(self.all_game_data)} games mapped.")
+                        
+                        # If we are already connected, broadcast the filtered data now
+                        if self.is_connected:
+                            await self.broadcast_current_game_data()
                     elif cmd == "ConnectionRefused":
                         errors = packet.get('errors', [])
                         if "InvalidGame" in errors and self.current_game_index < len(self.available_games) - 1:
@@ -395,7 +507,8 @@ class ArchipelagoClient:
                             await broadcast_to_ui({"type": "notification", "event": "error", "text": f"Connection Refused: {', '.join(errors)}"})
                     elif cmd == "Connected":
                         # Find our own alias (the name we have on the server)
-                        our_slot_id = packet.get("slot")
+                        self.slot_id = packet.get("slot", 0)
+                        our_slot_id = self.slot_id
                         for p in packet.get("players", []):
                             alias = p["alias"]
                             self.player_names[str(p["slot"])] = alias
@@ -406,8 +519,27 @@ class ArchipelagoClient:
                         for s_id, info in slot_info.items():
                             self.slot_to_game[str(s_id)] = info.get("game", "Unknown")
                         
+                        # Track hint points
+                        self.hint_points = packet.get("hint_points", 0)
+                        await broadcast_to_ui({"type": "hint_stats", "points": self.hint_points, "cost": self.hint_cost})
+                        
                         my_game = self.slot_to_game.get(str(our_slot_id), "Unknown")
                         print(f"SUCCESS! Connected as {self.slot} (Game: {my_game})", flush=True)
+                        
+                        # Broadcast items/locations/groups for THIS game only
+                        await self.broadcast_current_game_data()
+                        
+                        # Subscribe to hints
+                        self.team = packet.get("team", 0)
+                        self.hint_key = f"_read_hints_{self.team}_{self.slot_id}"
+                        debug_text = f"Bridge: Subscribing to hint key: {self.hint_key}"
+                        print(debug_text)
+                        print(debug_text)
+                        
+                        await self.ws.send(json.dumps([
+                            {"cmd": "SetNotify", "keys": [self.hint_key]},
+                            {"cmd": "Get", "keys": [self.hint_key]}
+                        ]))
                         
                         # Update slot cache
                         self.slot_cache[self.slot] = my_game
@@ -444,7 +576,7 @@ class ArchipelagoClient:
                             "tracked_players": self.tracked_players
                         })
                         
-                        await broadcast_to_ui({"type": "notification", "event": "normal", "text": f"Connected to AP as {self.slot} ({my_game})"})
+                        print(f"Connected to AP as {self.slot} ({my_game})")
                         
                         # Cache the successful game name in settings
                         try:
@@ -459,16 +591,181 @@ class ArchipelagoClient:
                         except: pass
                     elif cmd == "PrintJSON":
                         await self.handle_print_json(packet)
+                    elif cmd in ["Retrieved", "SetReply"]:
+                        keys = packet.get("keys", {})
+                        print(f"DEBUG: Received {cmd} with keys: {list(keys.keys())}")
+                        print(f"DEBUG: Received {cmd} for keys {list(keys.keys())}")
+                        for k, hints_raw in keys.items():
+                            if "_read_hints" in k or "_hints" in k:
+                                if isinstance(hints_raw, list):
+                                    await self.process_hint_list(hints_raw)
         except Exception as e:
             print(f"BRIDGE ERROR in listen loop: {e}", flush=True)
 
+    async def broadcast_current_game_data(self, target_ws=None):
+        # Find which game WE are currently playing
+        our_slot_id = None
+        for s_id, alias in self.player_names.items():
+            if alias == self.my_alias:
+                our_slot_id = s_id
+                break
+        
+        if not our_slot_id: return
+        
+        my_game = self.slot_to_game.get(our_slot_id)
+        if not my_game: return
+
+        # We only want items from our game + core Archipelago items
+        target_games = {my_game, "Archipelago"}
+        
+        print(f"Broadcasting autocomplete data for your game: {my_game}")
+        
+        all_items = set()
+        all_locations = set()
+        all_groups = set()
+        
+        for game in target_games:
+            if game in self.all_game_data:
+                game_data = self.all_game_data[game]
+                all_items.update(game_data.get("item_name_to_id", {}).keys())
+                all_locations.update(game_data.get("location_name_to_id", {}).keys())
+                all_groups.update(game_data.get("item_name_groups", {}).keys())
+                all_groups.update(game_data.get("location_name_groups", {}).keys())
+
+        msg_items = {"type": "item_list", "items": sorted(list(all_items))}
+        msg_locs = {"type": "location_list", "locations": sorted(list(all_locations))}
+        msg_groups = {"type": "groups_list", "groups": sorted(list(all_groups))}
+
+        if target_ws:
+            await target_ws.send(json.dumps(msg_items))
+            await target_ws.send(json.dumps(msg_locs))
+            await target_ws.send(json.dumps(msg_groups))
+        else:
+            await broadcast_to_ui(msg_items)
+            await broadcast_to_ui(msg_locs)
+            await broadcast_to_ui(msg_groups)
+
+    async def process_hint_list(self, hints_raw):
+        debug_text = f"Bridge: Processing {len(hints_raw)} hints from server..."
+        print(debug_text)
+        print(debug_text)
+        
+        processed_hints = []
+        for h in hints_raw:
+            # Archipelago Hint object structure:
+            # finding_player, receiving_player, item, location, found, entrance
+            p_finder_id = str(h.get("finding_player", ""))
+            p_owner_id = str(h.get("receiving_player", ""))
+            item_id = str(h.get("item", ""))
+            loc_id = str(h.get("location", ""))
+            found = h.get("found", False)
+            
+            # Translate IDs to names
+            p_finder = self.player_names.get(p_finder_id, f"Player {p_finder_id}")
+            p_owner = self.player_names.get(p_owner_id, f"Player {p_owner_id}")
+            
+            # Smart item lookup
+            item_name = ""
+            target_game = self.slot_to_game.get(p_owner_id)
+            if target_game and target_game in self.item_maps:
+                item_name = self.item_maps[target_game].get(item_id)
+            if not item_name: item_name = f"Item {item_id}"
+            
+            # Smart location lookup
+            location_name = ""
+            finder_game = self.slot_to_game.get(p_finder_id)
+            if finder_game and finder_game in self.location_maps:
+                location_name = self.location_maps[finder_game].get(loc_id)
+            if not location_name: location_name = f"Location {loc_id}"
+            
+            processed_hints.append({
+                "item": item_name,
+                "location": location_name,
+                "owner": p_owner,
+                "finder": p_finder,
+                "found": found
+            })
+            
+        print(f"DEBUG: Processed {len(processed_hints)} hints from Archipelago.")
+        self.cached_hints = processed_hints
+        await broadcast_to_ui({
+            "type": "hint_list",
+            "hints": self.cached_hints
+        })
+
     async def handle_print_json(self, packet):
         msg_type = packet.get("type", "Unknown")
-        # Do not display hints as notifications
+        parts = packet.get("data", [])
+        
+        # Process hints
         if msg_type == "Hint":
+            item_name, location_name, p_owner, p_finder = "", "", "", ""
+            found = packet.get("found", False)
+            
+            for part in parts:
+                p_type, text = part.get("type"), part.get("text", "")
+                if p_type == "item_id":
+                    target_player_id = str(part.get("player", ""))
+                    target_game = self.slot_to_game.get(target_player_id)
+                    if target_game and target_game in self.item_maps:
+                        item_name = self.item_maps[target_game].get(text)
+                    if not item_name: item_name = f"Item {text}"
+                elif p_type == "item_name": item_name = text
+                elif p_type == "location_id": 
+                    # Smart location lookup
+                    finder_id = str(part.get("player", ""))
+                    finder_game = self.slot_to_game.get(finder_id)
+                    if finder_game and finder_game in self.location_maps:
+                        location_name = self.location_maps[finder_game].get(text)
+                    
+                    # Fallback lookup in all known games
+                    if not location_name:
+                        for g_map in self.location_maps.values():
+                            if text in g_map:
+                                location_name = g_map[text]
+                                break
+                    
+                    if not location_name: location_name = f"Location {text}"
+                elif p_type == "location_name": location_name = text
+                elif p_type == "player_id":
+                    p_name = self.player_names.get(str(text), f"Player {text}")
+                    # The first player_id in a hint is usually the owner, the second is the finder
+                    if not p_owner: p_owner = p_name
+                    else: p_finder = p_name
+            
+            if not p_owner: p_owner = "Someone"
+            if not p_finder: p_finder = "Someone"
+
+            new_hint = {
+                "item": item_name,
+                "location": location_name,
+                "owner": p_owner,
+                "finder": p_finder,
+                "found": found
+            }
+            
+            # --- FILTER LOGIC ---
+            if self.filter_mode == "personal":
+                if p_owner != self.my_alias:
+                    return # Skip hints for other players' items
+
+            # Update cache (avoid duplicates)
+            exists = any(h["item"] == item_name and h["location"] == location_name and h["owner"] == p_owner for h in self.cached_hints)
+            if not exists:
+                self.cached_hints.insert(0, new_hint)
+
+            await broadcast_to_ui({
+                "type": "notification",
+                "event": "hint",
+                "item": item_name,
+                "location": location_name,
+                "owner": p_owner,
+                "finder": p_finder,
+                "found": found,
+                "raw_data": packet
+            })
             return
             
-        parts = packet.get("data", [])
         if msg_type in ["ItemSend", "ItemReceive"] or any(p.get("type") in ["item_id", "item_name"] for p in parts):
             item_name, p_from, p_to, item_class = "", "Someone", "Someone", 1
             found_players = []

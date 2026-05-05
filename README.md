@@ -56,7 +56,18 @@
 - **Smart Slot Cache**: The bridge remembers game links for slot names to eliminate "InvalidGame" errors.
 - **Network Optimization**: Enhanced WebSocket handling with compression and local traffic priority.
 - **Diagnostic Tools**: Real-time system logs and diagnostic indicators for quick troubleshooting.
-- **Linux Optimized**: Fully compatible with **Bazzite/SteamOS** (includes `--no-sandbox` support).
+
+## 🐧 Linux & Steam Deck (Bazzite) Support
+This edition is fully optimized for Linux distributions, including immutable systems like **Bazzite** or **SteamOS**:
+- 🏗️ **Hybrid Mode**: Native Python OBS server support if Node.js is unavailable.
+- 🛡️ **Sandbox Bypass**: Pre-configured with `--no-sandbox` to avoid SUID errors on Linux.
+- 📦 **AppImage Support**: Automatic detection of AppImage builds for a dependency-free installation.
+
+## 🛠️ System Architecture
+
+1.  **Control Center (`BroadCast-Archipelago.py`)**: The visual configuration interface to position the overlay and manage connections.
+2.  **The Bridge (`broadcast/bridge.py`)**: The core engine maintaining the connection to the Archipelago server and handling data filtering.
+3.  **Broadcast App (`broadcast-app`)**: The visual layer (Vite + React + Framer Motion) delivering smooth 60 FPS animations.
 
 ---
 
@@ -82,6 +93,10 @@
 - **Filtered**: Displays only items involving players in your "Tracked List".
 - **Personal**: Displays only items you send or receive.
 
+
+### 📺 OBS Integration
+- **Browser Source URL**: `http://localhost:5173/?view=obs`
+- **Recommended Size**: 400x600 (or match your Overlay dimensions)
 ---
 
 <div align="center">

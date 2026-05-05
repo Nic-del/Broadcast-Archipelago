@@ -9,7 +9,7 @@
 
 ---
 
-## ✨ New Features (v1.0.5)
+## ✨ New Features (v1.1.0)
 
 ### 🖼️ Custom Avatars & Friends Library
 - **Player Avatars**: Personalize your notifications by uploading custom images for each player in your Multiworld.

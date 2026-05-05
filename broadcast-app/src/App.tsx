@@ -1085,38 +1085,31 @@ const App: React.FC = () => {
                                 {/* Autocomplete Suggestions */}
                                 {hintInput.length >= 2 && (
                                   <div className="absolute bottom-full mb-2 left-0 right-0 bg-neutral-900 border border-white/10 rounded-lg shadow-2xl max-h-48 overflow-y-auto z-50 custom-scrollbar animate-in fade-in slide-in-from-bottom-2">
-                                    {[
-                                      ...itemList.map(i => ({ name: i, type: 'Item' })),
-                                      ...locationList.map(l => ({ name: l, type: 'Location' })),
-                                      ...groupsList.map(g => ({ name: g, type: 'Group' }))
-                                    ]
-                                      .filter(obj => obj.name.toLowerCase().includes(hintInput.toLowerCase()))
-                                      .sort((a, b) => {
-                                        // Prioritize items over locations
-                                        if (a.type === 'Item' && b.type !== 'Item') return -1;
-                                        if (a.type !== 'Item' && b.type === 'Item') return 1;
-                                        return a.name.localeCompare(b.name);
-                                      })
-                                      .slice(0, 15)
-                                      .map((obj, idx) => (
-                                        <button
-                                          key={`hint-suggest-${idx}`}
-                                          onClick={() => {
-                                            setHintInput(obj.name);
-                                          }}
-                                          className="w-full text-left px-3 py-2 text-[11px] hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 flex justify-between items-center"
-                                        >
-                                          <span>{obj.name}</span>
-                                          <span className={`text-[8px] uppercase px-1 border rounded ${
-                                            obj.type === 'Item' ? 'border-blue-500/30 text-blue-400 bg-blue-500/10' : 
-                                            obj.type === 'Location' ? 'border-purple-500/30 text-purple-400 bg-purple-500/10' : 
-                                            'border-green-500/30 text-green-400 bg-green-500/10'
-                                          }`}>
-                                            {obj.type === 'Location' ? 'Loc' : obj.type}
-                                          </span>
-                                        </button>
-                                      ))
-                                    }
+                                  {[
+                                    ...itemList.map(i => ({ name: i, type: 'Item' })),
+                                    ...groupsList.map(g => ({ name: g, type: 'Group' }))
+                                  ]
+                                    .filter(obj => obj.name.toLowerCase().includes(hintInput.toLowerCase()))
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .slice(0, 15)
+                                    .map((obj, idx) => (
+                                      <button
+                                        key={`hint-suggest-${idx}`}
+                                        onClick={() => {
+                                          setHintInput(obj.name);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-[11px] hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 flex justify-between items-center"
+                                      >
+                                        <span>{obj.name}</span>
+                                        <span className={`text-[8px] uppercase px-1 border rounded ${
+                                          obj.type === 'Item' ? 'border-blue-500/30 text-blue-400 bg-blue-500/10' : 
+                                          'border-green-500/30 text-green-400 bg-green-500/10'
+                                        }`}>
+                                          {obj.type}
+                                        </span>
+                                      </button>
+                                    ))
+                                  }
                                   </div>
                                 )}
                               </div>

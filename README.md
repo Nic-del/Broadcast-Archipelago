@@ -9,17 +9,21 @@
 
 ---
 
-## ✨ New Features (v1.0.4)
+## ✨ New Features (v1.0.5)
 
-### 👥 Smart Filtering & Player Tracking
-- **Filtered Mode**: Tired of spam in massive Multiworlds? Precisely select which players you want to "follow".
-- **Tracked Players**: Manage your tracking list directly from the overlay or via the launcher.
-- **Noise Reduction**: Filter notifications to see only what matters to you or your group.
+### 🖼️ Custom Avatars & Friends Library
+- **Player Avatars**: Personalize your notifications by uploading custom images for each player in your Multiworld.
+- **Friends Library**: Save your favorite avatars to a library to reuse them across different slots or sessions.
+- **Custom Mode**: Independently toggle custom avatars for your **Desktop Overlay** and **OBS Stream Mode**.
 
-### ⚙️ In-Overlay Control Panel
-- **Live Adjustments**: No need to restart the app! Toggle your sync mode (**Global**, **Personal**, **Filtered**) via the gear icon on the overlay.
-- **Dual Syncing**: Configure independent sync modes for your **Desktop Overlay** and your **OBS Browser Source**.
-- **Slot Management**: Switch profiles (Slots) instantly without manual disconnection.
+### 📍 Item Location Tracking
+- **Show Locations**: Know exactly where an item was found! Toggle location display to see the source of every notification.
+- **Event History Integration**: Locations are preserved in the redesigned event history for better tracking of "who got what where".
+
+### 🎨 Premium UI Redesign
+- **Multi-Tab Interface**: A completely redesigned control panel with dedicated tabs for **Display**, **Settings**, **Hints**, **Room**, and **Custom**.
+- **Modern Aesthetic**: Fluid animations, glassmorphism effects, and a more intuitive layout for managing your session.
+- **Improved Hints**: Better hint tracking with autocomplete suggestions and point management.
 
 ---
 

@@ -505,16 +505,21 @@ class BroadcastLauncherApp:
                 cwd = os.path.join(APP_DIR, cwd)
             else:
                 cwd = APP_DIR
-            log_path = os.path.join(self.logs_dir, f"{name}.log")
-            f = open(log_path, "w", encoding="utf-8")
-            self.log_files.append(f)
-            # FORCE disable colors for cleaner logs in text files
+            
+            # In debug branch, we don't redirect to file so we can see the console
+            # log_path = os.path.join(self.logs_dir, f"{name}.log")
+            # f = open(log_path, "w", encoding="utf-8")
+            # self.log_files.append(f)
+            
+            # Enable colors for debug
             env = os.environ.copy()
-            env["FORCE_COLOR"] = "0"
-            env["NO_COLOR"] = "1"
-            env["TERM"] = "dumb"
-            # 0x08000000 is CREATE_NO_WINDOW on Windows
-            return subprocess.Popen(cmd, cwd=cwd, stdout=f, stderr=f, shell=True if isinstance(cmd, str) else False, creationflags=0x08000000, env=env)
+            env["FORCE_COLOR"] = "1"
+            env.pop("NO_COLOR", None)
+            env.pop("TERM", None)
+            
+            # CREATE_NEW_CONSOLE (0x00000010) shows the output in a new window
+            # We remove stdout=f, stderr=f to let the output go to the new console
+            return subprocess.Popen(cmd, cwd=cwd, shell=True if isinstance(cmd, str) else False, creationflags=subprocess.CREATE_NEW_CONSOLE, env=env)
 
         # Start Dev Server only if needed
         # Needed if: OBS is enabled OR (Overlay is enabled AND no production build exists)

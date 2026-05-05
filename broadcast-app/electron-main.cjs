@@ -96,7 +96,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       backgroundThrottling: true, // Throttles animations/timers when window is not focused
       offscreen: false,
-      devTools: false, // Disable devTools in production to save memory
+      devTools: true, // Enable devTools for debug
       spellcheck: false,
     },
   });
@@ -110,6 +110,9 @@ function createWindow() {
   } else {
     win.loadURL(`http://localhost:5173?view=overlay&sync=${syncMode}`);
   }
+
+  // Open DevTools automatically in detached mode
+  win.webContents.openDevTools({ mode: 'detach' });
 
   // OPTIMIZATION: Lower frame rate even further when not needed
   win.webContents.setFrameRate(30);

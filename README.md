@@ -12,90 +12,75 @@
 ## ✨ Latest Features (v1.1.0)
 
 ### 🖼️ Custom Avatars & Friends Library
-- **Player Avatars**: Personalize your notifications by uploading custom images for each player in your Multiworld.
-- **Friends Library**: Save your favorite avatars to a library to reuse them across different slots or sessions.
-- **Custom Mode**: Independently toggle custom avatars for your **Desktop Overlay** and **OBS Stream Mode**.
-
-### 📍 Item Location Tracking
-- **Show Locations**: Know exactly where an item was found! Toggle location display to see the source of every notification.
-- **Event History Integration**: Locations are preserved in the redesigned event history for better tracking of "who got what where".
-
-### 🎨 Premium UI Redesign
-- **Multi-Tab Interface**: A completely redesigned control panel with dedicated tabs for **Display**, **Settings**, **Hints**, **Room**, and **Custom**.
-- **Modern Aesthetic**: Fluid animations, glassmorphism effects, and a more intuitive layout for managing your session.
+- **Player Avatars**: Personalize your notifications by uploading custom images for each player.
+- **Friends Library**: Save and reuse your favorite avatars across different slots or sessions.
+- **Independent Customization**: Toggle custom avatars separately for your **Desktop Overlay** and **OBS Mode**.
 
 ### 🔍 Advanced Hint System
-- **Smart Autocomplete**: Search for items and groups with a real-time filtered list. Suggestions appear below the search bar for better visibility.
-- **Hint Point Tracking**: Live tracking of your available hint points and the cost of the next hint.
-- **Persistent Hint List**: All your hints are saved and organized in a dedicated tab, with clear visual indicators for found vs. missing items.
+- **Smart Autocomplete**: Search for items and groups with a real-time filtered list (appears below the search bar).
+- **Hint Point Tracking**: Live tracking of available points and hint costs directly in the UI.
+- **Persistent Hint List**: Organized history of all hints with visual "found/missing" status.
+
+### 📍 Item Location Tracking
+- **Show Locations**: Know exactly where an item was found with the new "Display Locations" toggle.
+- **History Integration**: Locations are preserved in the event history for full session tracking.
 
 ---
 
-## 🕒 Previous Updates (v1.0.4)
+## 🛠️ Core Features
 
-### 👥 Smart Filtering & Player Tracking
-- **Filtered Mode**: Tired of spam in massive Multiworlds? Precisely select which players you want to "follow".
-- **Tracked Players**: Manage your tracking list directly from the overlay or via the launcher.
-- **Noise Reduction**: Filter notifications to see only what matters to you or your group.
+### ⚙️ Integrated Control Panel (Redesigned)
+- **Multi-Tab Interface**: dedicated tabs for **Display**, **Settings**, **Hints**, **Room**, and **Custom**.
+- **Live Adjustments**: Toggle sync modes (**Global**, **Personal**, **Filtered**) without restarting.
+- **Timing Controls**: Precisely adjust notification duration via sliders (separate for Overlay and OBS).
 
-### ⚙️ In-Overlay Control Panel
-- **Live Adjustments**: No need to restart the app! Toggle your sync mode (**Global**, **Personal**, **Filtered**) via the gear icon on the overlay.
-- **Dual Syncing**: Configure independent sync modes for your **Desktop Overlay** and your **OBS Browser Source**.
-- **Slot Management**: Switch profiles (Slots) instantly without manual disconnection.
+### 👥 Smart Filtering & Multi-Slot
+- **Filtered Mode**: Follow specific players or groups to reduce noise in massive Multiworlds.
+- **Dynamic Multi-Slot**: Connect to multiple slots simultaneously using the `slot1:Pass, slot2:Pass` syntax.
+- **Instant Switching**: Switch between active tracked players directly from the overlay.
 
----
-
-## 🐧 Linux & Steam Deck (Bazzite) Support
-This edition is fully optimized for Linux distributions, including immutable systems like **Bazzite** or **SteamOS**:
-- 🏗️ **Hybrid Mode**: Native Python OBS server support if Node.js is unavailable.
-- 🛡️ **Sandbox Bypass**: Pre-configured with `--no-sandbox` to avoid SUID errors on Linux.
-- 📦 **AppImage Support**: Automatic detection of AppImage builds for a dependency-free installation.
+### 📺 Professional OBS Integration
+- **OBS Auto-Hide**: Optional fade-out for browser sources to keep your stream layout clean.
+- **Independent Syncing**: Set OBS to "Filtered" while keeping your Desktop Overlay on "Global".
+- **Optimized Rendering**: Framer Motion powered 60 FPS fluid animations.
 
 ---
 
-## 🛠️ System Architecture
+## 🏗️ Technical Infrastructure
 
-1.  **Control Center (`BroadCast-Archipelago.py`)**: The visual configuration interface to position the overlay and manage connections.
-2.  **The Bridge (`broadcast/bridge.py`)**: The core engine maintaining the connection to the Archipelago server and handling data filtering.
-3.  **Broadcast App (`broadcast-app`)**: The visual layer (Vite + React + Framer Motion) delivering smooth 60 FPS animations.
+### 🖥️ Interactive Screen Preview
+- **Visual Drag & Drop**: Move the overlay window directly by dragging the preview in the Control Center.
+- **Smart Handle (Auto-Flip)**: The control button automatically flips to the opposite side if it gets too close to the screen edge.
+
+### 🛡️ Stability & Performance
+- **Smart Slot Cache**: The bridge remembers game links for slot names to eliminate "InvalidGame" errors.
+- **Network Optimization**: Enhanced WebSocket handling with compression and local traffic priority.
+- **Diagnostic Tools**: Real-time system logs and diagnostic indicators for quick troubleshooting.
+- **Linux Optimized**: Fully compatible with **Bazzite/SteamOS** (includes `--no-sandbox` support).
 
 ---
 
 ## ⚙️ Installation
 
 ### Windows
-1. Run `INSTALLATION.bat` to install Python and Node.js dependencies.
-2. Use `BroadCast-Archipelago.pyw` to configure your access.
+1. Run `INSTALLATION.bat` to install dependencies.
+2. Launch `BroadCast-Archipelago.pyw` to configure and start.
 
 ### Linux / Steam Deck
-1. Grant execution permissions: `chmod +x INSTALLATION.sh`
-2. Run `./INSTALLATION.sh`.
-3. Launch the system with `python3 BroadCast-Archipelago.py`.
+1. Grant permissions: `chmod +x INSTALLATION.sh`
+2. Run `./INSTALLATION.sh` and launch via `python3 BroadCast-Archipelago.py`.
 
 ---
 
 ## 🚀 Quick Start
 
 > [!TIP]
-> **Headless Mode**: Once configured, you can launch the system instantly without the control UI by running:
-> `python3 start_cli.py` (Linux) or `start_cli.bat` (Windows).
+> **Headless Mode**: Once configured, launch instantly without the UI by running `python3 start_cli.py` (Linux) or `start_cli.bat` (Windows).
 
 ### Sync Modes:
-- **All Items (Global)**: Displays every single event in the Multiworld.
-- **Filtered Items**: Displays only items from players in your "Tracked List".
-- **My Items (Personal)**: Displays only what you send or receive.
-
-### 📺 OBS Integration
-- **Browser Source URL**: `http://localhost:5173/?view=obs`
-- **Recommended Size**: 400x600 (or match your Overlay dimensions)
-
-
----
-
-## 📝 Prerequisites
-- **Python 3.12+**
-- **Node.js 20+** (Recommended for the dynamic overlay)
-- **Visual C++ Redistributable** (For Windows users)
+- **Global**: Displays every event in the Multiworld.
+- **Filtered**: Displays only items involving players in your "Tracked List".
+- **Personal**: Displays only items you send or receive.
 
 ---
 

@@ -23,7 +23,11 @@
 ### 🎨 Premium UI Redesign
 - **Multi-Tab Interface**: A completely redesigned control panel with dedicated tabs for **Display**, **Settings**, **Hints**, **Room**, and **Custom**.
 - **Modern Aesthetic**: Fluid animations, glassmorphism effects, and a more intuitive layout for managing your session.
-- **Improved Hints**: Better hint tracking with autocomplete suggestions and point management.
+
+### 🔍 Advanced Hint System
+- **Smart Autocomplete**: Search for items and groups with a real-time filtered list. Suggestions appear below the search bar for better visibility.
+- **Hint Point Tracking**: Live tracking of your available hint points and the cost of the next hint.
+- **Persistent Hint List**: All your hints are saved and organized in a dedicated tab, with clear visual indicators for found vs. missing items.
 
 ---
 

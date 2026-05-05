@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Trash2,
   Upload,
+  X,
   Image as ImageIcon
 } from 'lucide-react';
 import { cn } from './lib/utils';
@@ -638,6 +639,12 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCloseApp = () => {
+    if (window.confirm("Are you sure you want to close BroadCast Archipelago?")) {
+      (window as any).electron?.closeApp();
+    }
+  };
+
   const getAccentColor = (itemClass?: number) => {
     switch(itemClass) {
       case 0: return 'border-accent-prog shadow-accent-prog/20';
@@ -821,8 +828,12 @@ const App: React.FC = () => {
               >
                 Clear
               </button>
-              <button onClick={() => setShowHistory(false)} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-                <Settings className="w-5 h-5 text-neutral-400" />
+              <button 
+                onClick={handleCloseApp} 
+                className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group"
+                title="Close Application"
+              >
+                <X className="w-5 h-5 text-neutral-400 group-hover:text-red-500" />
               </button>
             </div>
           </div>

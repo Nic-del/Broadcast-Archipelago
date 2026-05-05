@@ -182,6 +182,10 @@ function createWindow() {
     }
   });
 
+  ipcMain.on('close-app', () => {
+    app.quit();
+  });
+
   // Watch for display changes
   const notifyDisplays = () => {
     win.webContents.send('displays-updated', screen.getAllDisplays().map(d => ({

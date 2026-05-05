@@ -9,7 +9,7 @@
 
 ---
 
-## ✨ New Features (v1.1.0)
+## ✨ Latest Features (v1.1.0)
 
 ### 🖼️ Custom Avatars & Friends Library
 - **Player Avatars**: Personalize your notifications by uploading custom images for each player in your Multiworld.
@@ -28,6 +28,20 @@
 - **Smart Autocomplete**: Search for items and groups with a real-time filtered list. Suggestions appear below the search bar for better visibility.
 - **Hint Point Tracking**: Live tracking of your available hint points and the cost of the next hint.
 - **Persistent Hint List**: All your hints are saved and organized in a dedicated tab, with clear visual indicators for found vs. missing items.
+
+---
+
+## 🕒 Previous Updates (v1.0.4)
+
+### 👥 Smart Filtering & Player Tracking
+- **Filtered Mode**: Tired of spam in massive Multiworlds? Precisely select which players you want to "follow".
+- **Tracked Players**: Manage your tracking list directly from the overlay or via the launcher.
+- **Noise Reduction**: Filter notifications to see only what matters to you or your group.
+
+### ⚙️ In-Overlay Control Panel
+- **Live Adjustments**: No need to restart the app! Toggle your sync mode (**Global**, **Personal**, **Filtered**) via the gear icon on the overlay.
+- **Dual Syncing**: Configure independent sync modes for your **Desktop Overlay** and your **OBS Browser Source**.
+- **Slot Management**: Switch profiles (Slots) instantly without manual disconnection.
 
 ---
 

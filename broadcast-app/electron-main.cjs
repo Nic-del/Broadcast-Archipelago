@@ -100,6 +100,7 @@ function createWindow() {
       spellcheck: false,
     },
   });
+  win.setAlwaysOnTop(true, 'screen-saver');
 
   // Load the Production Build or fall back to Dev Server
   const distPath = path.join(__dirname, 'dist', 'index.html');
@@ -120,6 +121,9 @@ function createWindow() {
   // Savestate
   let isSavingBlocked = false;
   win.on('blur', () => {
+    // Reinforce Always on Top when focus is lost
+    win.setAlwaysOnTop(true, 'screen-saver');
+
     // Prevent saving if window snaps to (0,0) on blur (Linux/Desktop manager bug)
     isSavingBlocked = true;
     setTimeout(() => { isSavingBlocked = false; }, 500);

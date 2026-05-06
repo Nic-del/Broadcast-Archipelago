@@ -129,6 +129,28 @@ function createWindow() {
     setTimeout(() => { isSavingBlocked = false; }, 500);
   });
 
+  // Always on Top Watcher (Debug & Enforcement)
+  setInterval(() => {
+    if (!win.isDestroyed()) {
+      const isTop = win.isAlwaysOnTop();
+      if (!isTop) {
+        console.warn(`[WATCHDOG] L'overlay a perdu son statut "Always on Top"!`);
+        console.warn(`[WATCHDOG] Une autre application (souvent un jeu en mode plein écran exclusif ou Windows Focus Assist) a forcé la perte de priorité.`);
+        console.log(`[WATCHDOG] Tentative de restauration de la priorité maximale (screen-saver)...`);
+        
+        // Force restoration
+        win.setAlwaysOnTop(true, 'screen-saver');
+        
+        // Log the result
+        if (win.isAlwaysOnTop()) {
+          console.log(`[WATCHDOG] Succès : Priorité restaurée avec succès.`);
+        } else {
+          console.error(`[WATCHDOG] Échec : Windows refuse de rendre la priorité. Essayez de passer le jeu en mode "Fenêtré Sans Bordure" (Borderless Windowed).`);
+        }
+      }
+    }
+  }, 2000); // Vérifie toutes les 2 secondes
+
   const saveState = () => {
     if (isSavingBlocked) return;
     

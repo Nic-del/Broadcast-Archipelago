@@ -2,16 +2,32 @@ const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// OPTIMIZATION: Disable Hardware Acceleration to prevent game frame drops and stuttering
-app.disableHardwareAcceleration();
-
-// EXPERIMENTAL: Further optimize command line switches for low impact
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('disable-gpu-rasterization');
+// OPTIMIZATION: Limit FPS and resource usage to save performance for the game
+app.commandLine.appendSwitch('limit-fps', '30'); // Limit overlay logic/render to 30fps
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache'); // FIX: Prevent GPU cache "Access Denied" errors
 app.commandLine.appendSwitch('disable-http-cache'); // FIX: Prevent general disk cache errors
-app.commandLine.appendSwitch('limit-fps', '30'); // Limit overlay logic/render to 30fps to save resources for the game
+
+// COMPATIBILITY: Fix for Windows 10/11 to prevent the overlay from being hidden/paused by the OS
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
+function loadSettingsSync() {
+  const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error("Failed to load settings:", e);
+  }
+  return null;
+}
+
+// Check for hardware acceleration toggle before app is ready
+const initialSettings = loadSettingsSync();
+if (initialSettings && initialSettings.disable_hw_accel) {
+  app.disableHardwareAcceleration();
+}
 
 // FIX: Set a custom user data path. 
 // We avoid writing to the project folder if we are in a read-only AppImage mount.
@@ -123,6 +139,10 @@ function createWindow() {
     },
   });
 
+  // WINDOWS 10/11 FIX: Set priority level to 'screen-saver' to stay above fullscreen games
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
   // Load the Production Build or fall back to Dev Server
   const distPath = path.join(__dirname, 'dist', 'index.html');
   const syncMode = settings && settings.sync_mode ? settings.sync_mode : 'all';
@@ -204,6 +224,10 @@ function createWindow() {
     }
   });
 
+  ipcMain.on('close-app', () => {
+    app.quit();
+  });
+
   // Watch for display changes
   const notifyDisplays = () => {
     win.webContents.send('displays-updated', screen.getAllDisplays().map(d => ({
@@ -221,6 +245,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Set App ID for Windows taskbar grouping
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.broadcast.app');
+  }
+  
   createWindow();
 
   app.on('activate', () => {

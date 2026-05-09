@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electron', {
   getDisplays: () => ipcRenderer.invoke('get-displays'),
   getWindowBounds: () => ipcRenderer.invoke('get-window-bounds'),
+  closeApp: () => ipcRenderer.send('close-app'),
   setDisplay: (index) => ipcRenderer.send('set-display', index),
   onDisplaysUpdated: (callback) => {
     const listener = (_event, displays) => callback(displays);

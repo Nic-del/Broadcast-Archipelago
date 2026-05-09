@@ -1231,7 +1231,7 @@ const App: React.FC = () => {
                               </div>
                               {/* Autocomplete Suggestions */}
                               {hintInput.length >= 2 && (
-                                <div className="absolute bottom-full mb-2 left-0 right-0 bg-neutral-900 border border-white/10 rounded-lg shadow-2xl max-h-48 overflow-y-auto z-50 custom-scrollbar animate-in fade-in slide-in-from-bottom-2">
+                                <div className="absolute top-full mt-2 left-0 right-0 bg-neutral-900 border border-white/10 rounded-lg shadow-2xl max-h-48 overflow-y-auto z-50 custom-scrollbar animate-in fade-in slide-in-from-top-2">
                                   {[
                                     ...itemList.map(i => ({ name: i, type: 'Item' })),
                                     ...locationList.map(l => ({ name: l, type: 'Location' })),

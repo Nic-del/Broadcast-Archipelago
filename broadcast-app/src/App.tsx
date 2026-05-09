@@ -42,14 +42,6 @@ interface GameNotification {
   found?: boolean;
 }
 
-interface Hint {
-  item: string;
-  location: string;
-  owner: string;
-  finder: string;
-  found: boolean;
-}
-
 interface DisplayInfo {
   id: number;
   label: string;

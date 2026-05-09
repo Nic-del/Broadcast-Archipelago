@@ -41,7 +41,7 @@ async def register_ui(websocket):
         settings_path = os.path.join(root_dir, "broadcast_settings.json")
         
         overlay_mode, obs_mode, tracked_players = "all", "all", []
-        ov_duration, ob_duration, ob_fade = 10, 0, False
+        ov_duration, ob_duration, ob_fade, disable_hw_accel = 10, 0, False, False
         try:
             if os.path.exists(settings_path):
                 with open(settings_path, "r") as f:
@@ -51,6 +51,7 @@ async def register_ui(websocket):
                     ov_duration = s.get("overlay_duration", 10)
                     ob_duration = s.get("obs_duration", 15)
                     ob_fade = s.get("obs_fade", False)
+                    disable_hw_accel = s.get("disable_hw_accel", False)
                     tracked_str = s.get("tracked_players", "")
                     if tracked_str:
                         tracked_players = [p.strip() for p in tracked_str.split(",") if p.strip()]
@@ -76,13 +77,20 @@ async def register_ui(websocket):
             "overlay_duration": ov_duration,
             "obs_duration": ob_duration,
             "obs_fade": ob_fade,
+            "disable_hw_accel": disable_hw_accel,
             "hint_points": c.hint_points,
             "hint_cost": c.hint_cost,
             "tracked_players": tracked_players,
             "custom_mode_overlay": avatar_settings.get("custom_mode_overlay", False),
             "custom_mode_obs": avatar_settings.get("custom_mode_obs", False),
             "player_avatars": avatar_settings.get("player_avatars", {}),
-            "friends_library": avatar_settings.get("friends_library", {})
+            "friends_library": avatar_settings.get("friends_library", {}),
+            "avatar_size": avatar_settings.get("avatar_size", 48),
+            "show_timestamp": avatar_settings.get("show_timestamp", True),
+            "show_event_label": avatar_settings.get("show_event_label", True),
+            "notif_color": avatar_settings.get("notif_color", "#171717"),
+            "notif_layout": avatar_settings.get("notif_layout", "standard"),
+            "notif_padding": avatar_settings.get("notif_padding", 12)
         }))
 
         # Also send item list if we have it (Filtered for current game)
@@ -121,6 +129,7 @@ async def register_ui(websocket):
                         if "overlay_duration" in data: settings["overlay_duration"] = data["overlay_duration"]
                         if "obs_duration" in data: settings["obs_duration"] = data["obs_duration"]
                         if "obs_fade" in data: settings["obs_fade"] = data["obs_fade"]
+                        if "disable_hw_accel" in data: settings["disable_hw_accel"] = data["disable_hw_accel"]
                         
                         with open(settings_path, "w") as f:
                             json.dump(settings, f, indent=4)
@@ -130,7 +139,8 @@ async def register_ui(websocket):
                             "type": "room_info",
                             "overlay_duration": settings.get("overlay_duration", 10),
                             "obs_duration": settings.get("obs_duration", 15),
-                            "obs_fade": settings.get("obs_fade", False)
+                            "obs_fade": settings.get("obs_fade", False),
+                            "disable_hw_accel": settings.get("disable_hw_accel", False)
                         })
                     except Exception as e: print(f"Error updating settings: {e}")
                 elif data.get("type") == "update_avatar_data":
@@ -144,20 +154,18 @@ async def register_ui(websocket):
                                 avatar_settings = json.load(f)
                         
                         # Update specific keys
-                        if "custom_mode_overlay" in data: avatar_settings["custom_mode_overlay"] = data["custom_mode_overlay"]
-                        if "custom_mode_obs" in data: avatar_settings["custom_mode_obs"] = data["custom_mode_obs"]
-                        if "player_avatars" in data: avatar_settings["player_avatars"] = data["player_avatars"]
-                        if "friends_library" in data: avatar_settings["friends_library"] = data["friends_library"]
+                        keys = ["custom_mode_overlay", "custom_mode_obs", "player_avatars", "friends_library", 
+                                "avatar_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding"]
+                        for k in keys:
+                            if k in data: avatar_settings[k] = data[k]
                         
                         with open(avatar_path, "w") as f:
                             json.dump(avatar_settings, f) # No indent for large data
                         
                         # Broadcast update to all
                         update_msg = {"type": "avatar_sync"}
-                        if "custom_mode_overlay" in data: update_msg["custom_mode_overlay"] = data["custom_mode_overlay"]
-                        if "custom_mode_obs" in data: update_msg["custom_mode_obs"] = data["custom_mode_obs"]
-                        if "player_avatars" in data: update_msg["player_avatars"] = data["player_avatars"]
-                        if "friends_library" in data: update_msg["friends_library"] = data["friends_library"]
+                        for k in keys:
+                            if k in data: update_msg[k] = data[k]
                         
                         await broadcast_to_ui(update_msg)
                     except Exception as e: print(f"Error updating avatar data: {e}")
@@ -170,8 +178,8 @@ async def register_ui(websocket):
                             print(f"[{source}] Already connected to slot: {new_slot}, ignoring switch request.")
                             continue
                             
-                        # Find the password for this slot if we have it
-                        new_pass = websocket.ap_client.profiles.get(new_slot, "")
+                        # Find the password for this slot if we have it, else fallback to global password
+                        new_pass = websocket.ap_client.profiles.get(new_slot, websocket.ap_client.global_password)
                         print(f"[{source}] Switching to slot: {new_slot}")
                         if hasattr(websocket, 'ap_client'):
                             websocket.ap_client.slot = new_slot
@@ -316,6 +324,7 @@ class ArchipelagoClient:
         self.raw_server = server.replace("ws://", "").replace("wss://", "")
         self.slot = slot
         self.password = password
+        self.global_password = password
         self.filter_mode = filter_mode # "all" or "personal"
         self.ws = None
         self.player_names = {}
@@ -895,7 +904,7 @@ async def main():
         await register_ui(websocket)
 
     print(f"\n--- Bridge Starting ({args.mode} mode) ---", flush=True)
-    async with websockets.serve(bridge_handler, "localhost", args.port):
+    async with websockets.serve(bridge_handler, "localhost", args.port, max_size=None):
         await ap_client.connect()
 
 if __name__ == "__main__":

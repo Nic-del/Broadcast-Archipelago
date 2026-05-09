@@ -163,6 +163,33 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('broadcast_friends_library');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // Notification Styling Settings
+  const [avatarSize, setAvatarSize] = useState<number>(() => {
+    const saved = localStorage.getItem('broadcast_avatar_size');
+    return saved ? parseInt(saved) : 48;
+  });
+  const [showTimestamp, setShowTimestamp] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_show_timestamp');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [showEventLabel, setShowEventLabel] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_show_event_label');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [notifColor, setNotifColor] = useState<string>(() => {
+    const saved = localStorage.getItem('broadcast_notif_color');
+    return saved || '#171717';
+  });
+  const [notifLayout, setNotifLayout] = useState<'standard' | 'reversed' | 'vertical'>(() => {
+    const saved = localStorage.getItem('broadcast_notif_layout');
+    return (saved as any) || 'standard';
+  });
+  const [notifPadding, setNotifPadding] = useState<number>(() => {
+    const saved = localStorage.getItem('broadcast_notif_padding');
+    return saved ? parseInt(saved) : 12;
+  });
+
   const socketRef = useRef<WebSocket | null>(null);
 
   // Fetch initial data from Electron
@@ -277,6 +304,30 @@ const App: React.FC = () => {
     localStorage.setItem('broadcast_friends_library', JSON.stringify(friendsLibrary));
   }, [friendsLibrary]);
 
+  useEffect(() => {
+    localStorage.setItem('broadcast_avatar_size', avatarSize.toString());
+  }, [avatarSize]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_show_timestamp', JSON.stringify(showTimestamp));
+  }, [showTimestamp]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_show_event_label', JSON.stringify(showEventLabel));
+  }, [showEventLabel]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_notif_color', notifColor);
+  }, [notifColor]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_notif_layout', notifLayout);
+  }, [notifLayout]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_notif_padding', notifPadding.toString());
+  }, [notifPadding]);
+
   // Connect to Bridge
   useEffect(() => {
     let isMounted = true;
@@ -328,6 +379,14 @@ const App: React.FC = () => {
             if (data.custom_mode_obs !== undefined) setIsCustomModeOBS(data.custom_mode_obs);
             if (data.player_avatars) setPlayerAvatars(data.player_avatars);
             if (data.friends_library) setFriendsLibrary(data.friends_library);
+            
+            // Style Sync
+            if (data.avatar_size !== undefined) setAvatarSize(data.avatar_size);
+            if (data.show_timestamp !== undefined) setShowTimestamp(data.show_timestamp);
+            if (data.show_event_label !== undefined) setShowEventLabel(data.show_event_label);
+            if (data.notif_color !== undefined) setNotifColor(data.notif_color);
+            if (data.notif_layout !== undefined) setNotifLayout(data.notif_layout);
+            if (data.notif_padding !== undefined) setNotifPadding(data.notif_padding);
 
             // Dynamic Mode Sync from Bridge
             const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
@@ -441,6 +500,13 @@ const App: React.FC = () => {
             if (data.custom_mode_obs !== undefined) setIsCustomModeOBS(data.custom_mode_obs);
             if (data.player_avatars) setPlayerAvatars(data.player_avatars);
             if (data.friends_library) setFriendsLibrary(data.friends_library);
+            
+            if (data.avatar_size !== undefined) setAvatarSize(data.avatar_size);
+            if (data.show_timestamp !== undefined) setShowTimestamp(data.show_timestamp);
+            if (data.show_event_label !== undefined) setShowEventLabel(data.show_event_label);
+            if (data.notif_color !== undefined) setNotifColor(data.notif_color);
+            if (data.notif_layout !== undefined) setNotifLayout(data.notif_layout);
+            if (data.notif_padding !== undefined) setNotifPadding(data.notif_padding);
           }
         } catch (e) { console.error(e); }
       };
@@ -554,17 +620,42 @@ const App: React.FC = () => {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        const image = reader.result as string;
-        const updated = { ...playerAvatars, [playerName]: image };
-        setPlayerAvatars(updated);
-        
-        // Sync to bridge
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
-          socketRef.current.send(JSON.stringify({
-            type: 'update_avatar_data',
-            player_avatars: updated
-          }));
-        }
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 256;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedImage = canvas.toDataURL('image/webp', 0.85);
+          const updated = { ...playerAvatars, [playerName]: compressedImage };
+          setPlayerAvatars(updated);
+          
+          // Sync to bridge
+          if (socketRef.current?.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify({
+              type: 'update_avatar_data',
+              player_avatars: updated
+            }));
+          }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -628,6 +719,31 @@ const App: React.FC = () => {
     }
   };
 
+  const resetStyling = () => {
+    const defaults = {
+      avatar_size: 48,
+      show_timestamp: true,
+      show_event_label: true,
+      notif_color: '#171717',
+      notif_layout: 'standard',
+      notif_padding: 12
+    };
+    
+    setAvatarSize(defaults.avatar_size);
+    setShowTimestamp(defaults.show_timestamp);
+    setShowEventLabel(defaults.show_event_label);
+    setNotifColor(defaults.notif_color);
+    setNotifLayout(defaults.notif_layout as any);
+    setNotifPadding(defaults.notif_padding);
+    
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'update_avatar_data',
+        ...defaults
+      }));
+    }
+  };
+
   const getAccentColor = (itemClass?: number) => {
     switch(itemClass) {
       case 0: return 'border-accent-prog shadow-accent-prog/20';
@@ -681,61 +797,101 @@ const App: React.FC = () => {
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 exit={{ opacity: 0, x: -50, scale: 0.9 }}
                 className={cn(
-                  "w-full bg-neutral-900/90 backdrop-blur-xl border p-3 rounded-xl flex items-center gap-3 shadow-2xl pointer-events-auto",
+                  "w-full backdrop-blur-xl border rounded-xl flex shadow-2xl pointer-events-auto transition-all duration-300",
+                  notifLayout === 'vertical' ? "flex-col items-center text-center" : (notifLayout === 'reversed' ? "flex-row-reverse" : "flex-row items-center"),
                   getAccentColor(notif.class),
                   notif.event === 'error' && "border-red-500 shadow-red-500/20"
                 )}
-                style={{}} 
+                style={{ 
+                  backgroundColor: `${notifColor}${Math.floor(bgOpacity * 2.55).toString(16).padStart(2, '0')}`,
+                  padding: `${notifPadding}px`,
+                  gap: `${notifPadding}px`
+                }} 
               >
                 {((isStreamMode ? isCustomModeOBS : isCustomModeOverlay) && (notif.event === 'receive' || notif.event === 'send')) ? (
                   <div className="flex items-center gap-1 shrink-0">
                     {notif.from === notif.to ? (
-                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden">
+                      <div 
+                        className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden"
+                        style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
+                      >
                         {playerAvatars[notif.from] ? (
                           <img src={playerAvatars[notif.from]} alt={notif.from} className="w-full h-full object-cover" />
                         ) : (
-                          <User className="w-6 h-6 text-neutral-500" />
+                          <User style={{ width: `${avatarSize/2}px`, height: `${avatarSize/2}px` }} className="text-neutral-500" />
                         )}
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5 p-1 bg-black/20 rounded-xl border border-white/5">
-                        <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden shrink-0">
+                      <div className={cn(
+                        "flex items-center p-1 bg-black/20 rounded-xl border border-white/5",
+                        notifLayout === 'vertical' ? "flex-row" : "flex-row",
+                        avatarSize < 40 ? "gap-1" : "gap-1.5"
+                      )}>
+                        <div 
+                          className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden shrink-0"
+                          style={{ width: `${avatarSize * 0.7}px`, height: `${avatarSize * 0.7}px` }}
+                        >
                           {playerAvatars[notif.from] ? (
                             <img src={playerAvatars[notif.from]} alt={notif.from} className="w-full h-full object-cover" />
                           ) : (
-                            <User className="w-4 h-4 text-neutral-600" />
+                            <User style={{ width: `${avatarSize * 0.35}px`, height: `${avatarSize * 0.35}px` }} className="text-neutral-600" />
                           )}
                         </div>
                         <ArrowRight className="w-3 h-3 text-neutral-600" />
-                        <div className="w-8 h-8 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden shrink-0">
+                        <div 
+                          className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden shrink-0"
+                          style={{ width: `${avatarSize * 0.7}px`, height: `${avatarSize * 0.7}px` }}
+                        >
                           {playerAvatars[notif.to] ? (
                             <img src={playerAvatars[notif.to]} alt={notif.to} className="w-full h-full object-cover" />
                           ) : (
-                            <User className="w-4 h-4 text-neutral-600" />
+                            <User style={{ width: `${avatarSize * 0.35}px`, height: `${avatarSize * 0.35}px` }} className="text-neutral-600" />
                           )}
                         </div>
                       </div>
                     )}
                   </div>
                 ) : (notif.event === 'receive' || notif.event === 'send') ? (
-                  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
-                    <img src={getLogo(notif.class)} alt="Logo" className="w-8 h-8 object-contain filter drop-shadow-md" />
+                  <div 
+                    className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0"
+                    style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
+                  >
+                    <img 
+                      src={getLogo(notif.class)} 
+                      alt="Logo" 
+                      className="object-contain filter drop-shadow-md" 
+                      style={{ width: `${avatarSize * 0.6}px`, height: `${avatarSize * 0.6}px` }}
+                    />
                   </div>
                 ) : (
-                  <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0">
-                    {notif.event === 'error' ? <AlertCircle className="w-5 h-5 text-red-500" /> : <Info className="w-5 h-5 text-blue-400" />}
+                  <div 
+                    className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0"
+                    style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
+                  >
+                    {notif.event === 'error' ? (
+                      <AlertCircle style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-red-500" />
+                    ) : (
+                      <Info style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-blue-400" />
+                    )}
                   </div>
                 )}
                 
                 <div className="flex-1 overflow-hidden">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                      {(notif.event === 'receive' || notif.event === 'send') 
-                        ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
-                        : 'System Message'}
-                    </span>
-                    <span className="text-[10px] text-neutral-600">{notif.timestamp}</span>
-                  </div>
+                  {(showEventLabel || showTimestamp) && (
+                    <div className={cn(
+                      "flex justify-between items-center mb-1",
+                      notifLayout === 'vertical' && "justify-center gap-4"
+                    )}>
+                      {showEventLabel && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          {(notif.event === 'receive' || notif.event === 'send') 
+                            ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
+                            : 'System Message'}
+                        </span>
+                      )}
+                      {showTimestamp && <span className="text-[10px] text-neutral-600">{notif.timestamp}</span>}
+                    </div>
+                  )}
                   
                   <div className="text-[14px] leading-tight font-medium">
                     {(notif.event === 'receive' || notif.event === 'send') && (
@@ -1413,7 +1569,129 @@ const App: React.FC = () => {
                       </div>
 
                       <div className="pt-4 border-t border-white/5 space-y-4">
-                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Player Avatars</h4>
+                        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
+                             Notification Design
+                          </h4>
+                          <button 
+                            onClick={resetStyling}
+                            className="text-[9px] text-neutral-500 hover:text-white transition-colors flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5 uppercase"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" /> Reset Defaults
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-neutral-400">
+                              <span>Avatar Size</span>
+                              <span>{avatarSize}px</span>
+                            </div>
+                            <input 
+                              type="range" min="32" max="128" value={avatarSize} 
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setAvatarSize(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', avatar_size: val }));
+                                }
+                              }}
+                              className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-neutral-400">
+                              <span>Padding</span>
+                              <span>{notifPadding}px</span>
+                            </div>
+                            <input 
+                              type="range" min="4" max="24" value={notifPadding} 
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setNotifPadding(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', notif_padding: val }));
+                                }
+                              }}
+                              className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-4 pt-2">
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="checkbox" checked={showTimestamp} 
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                setShowTimestamp(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', show_timestamp: val }));
+                                }
+                              }}
+                              className="w-3 h-3 rounded bg-black/40 border border-white/10 accent-pink-500"
+                            />
+                            <span className="text-[10px] text-neutral-400 group-hover:text-white transition-colors">Show Time</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer group">
+                            <input 
+                              type="checkbox" checked={showEventLabel} 
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                setShowEventLabel(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', show_event_label: val }));
+                                }
+                              }}
+                              className="w-3 h-3 rounded bg-black/40 border border-white/10 accent-pink-500"
+                            />
+                            <span className="text-[10px] text-neutral-400 group-hover:text-white transition-colors">Show Label</span>
+                          </label>
+
+                          <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5">
+                            <span className="text-[9px] uppercase font-bold text-neutral-500 px-1">Color</span>
+                            <input 
+                              type="color" value={notifColor} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setNotifColor(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', notif_color: val }));
+                                }
+                              }}
+                              className="w-6 h-4 bg-transparent border-0 cursor-pointer p-0"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-[9px] uppercase font-bold text-neutral-400">Layout Mode</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {(['standard', 'reversed', 'vertical'] as const).map(mode => (
+                              <button
+                                key={mode}
+                                onClick={() => {
+                                  setNotifLayout(mode);
+                                  if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                    socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', notif_layout: mode }));
+                                  }
+                                }}
+                                className={cn(
+                                  "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                  notifLayout === mode 
+                                    ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]" 
+                                    : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                )}
+                              >
+                                {mode}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 pt-4 border-t border-white/5">Player Avatars</h4>
                         
                         {playerList.length === 0 ? (
                           <div className="text-center py-4 text-[10px] text-neutral-600 italic">

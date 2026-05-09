@@ -26,7 +26,7 @@ fi
 
 echo "STEP 1: Installing system dependencies (Tkinter, Pip)..."
 sudo apt update
-sudo apt install python3-tk python3-pip -y
+sudo apt install python3-tk python3-pip libfuse2 -y
 
 echo ""
 echo "STEP 2: Installing Python dependencies (websockets, psutil, screeninfo)..."

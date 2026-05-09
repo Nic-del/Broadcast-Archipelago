@@ -93,11 +93,18 @@ This edition is fully optimized for Linux distributions, including immutable sys
 - **Filtered**: Displays only items involving players in your "Tracked List".
 - **Personal**: Displays only items you send or receive.
 
+## 📝 Prerequisites
+- **Python 3.12+**
+- **Node.js 20+** (Recommended for the dynamic overlay)
+
+---
+
 
 ### 📺 OBS Integration
 - **Browser Source URL**: `http://localhost:5173/?view=obs`
 - **Recommended Size**: 400x600 (or match your Overlay dimensions)
 ---
+
 
 <div align="center">
   <img width="400" alt="Screenshot 1" src="https://github.com/user-attachments/assets/0f35b070-1aed-45f5-8fd0-925cb91b2482" />

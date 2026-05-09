@@ -315,6 +315,7 @@ class BroadcastLauncherApp:
         msg += "5. Fixed: Added '--no-sandbox' for SUID compatibility.\n"
         msg += "6. SSL Error? If using a local server, ensure you use 'localhost:port'.\n"
         msg += "7. If using archipelago.gg, the address should be 'archipelago.gg:PORT'."
+
         messagebox.showinfo("Diagnostic Tool", msg)
 
     def on_monitor_change(self, event=None):

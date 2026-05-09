@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wifi, 
   WifiOff, 
-  Settings, 
   Bell, 
   History,
   Info, 
@@ -13,13 +12,11 @@ import {
   RefreshCw,
   MapPin,
   User,
-  Package,
   CheckCircle2,
   ArrowRight,
   Trash2,
   Upload,
-  X,
-  Image as ImageIcon
+  X
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -147,7 +144,7 @@ const App: React.FC = () => {
   const [groupsList, setGroupsList] = useState<string[]>([]);
   const [hintPoints, setHintPoints] = useState<number>(0);
   const [hintCost, setHintCost] = useState<number>(0);
-  const [allHints, setAllHints] = useState<Hint[]>([]);
+
   const [isCustomModeOverlay, setIsCustomModeOverlay] = useState<boolean>(() => {
     const saved = localStorage.getItem('broadcast_custom_mode_overlay');
     return saved ? JSON.parse(saved) : false;
@@ -830,7 +827,7 @@ const App: React.FC = () => {
                         className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden"
                         style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
                       >
-                        {playerAvatars[notif.from] ? (
+                        {(notif.from && playerAvatars[notif.from]) ? (
                           <img src={playerAvatars[notif.from]} alt={notif.from} className="w-full h-full object-cover" />
                         ) : (
                           <User style={{ width: `${avatarSize/2}px`, height: `${avatarSize/2}px` }} className="text-neutral-500" />
@@ -846,7 +843,7 @@ const App: React.FC = () => {
                           className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden shrink-0"
                           style={{ width: `${avatarSize * 0.7}px`, height: `${avatarSize * 0.7}px` }}
                         >
-                          {playerAvatars[notif.from] ? (
+                          {(notif.from && playerAvatars[notif.from]) ? (
                             <img src={playerAvatars[notif.from]} alt={notif.from} className="w-full h-full object-cover" />
                           ) : (
                             <User style={{ width: `${avatarSize * 0.35}px`, height: `${avatarSize * 0.35}px` }} className="text-neutral-600" />
@@ -857,7 +854,7 @@ const App: React.FC = () => {
                           className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 overflow-hidden shrink-0"
                           style={{ width: `${avatarSize * 0.7}px`, height: `${avatarSize * 0.7}px` }}
                         >
-                          {playerAvatars[notif.to] ? (
+                          {(notif.to && playerAvatars[notif.to]) ? (
                             <img src={playerAvatars[notif.to]} alt={notif.to} className="w-full h-full object-cover" />
                           ) : (
                             <User style={{ width: `${avatarSize * 0.35}px`, height: `${avatarSize * 0.35}px` }} className="text-neutral-600" />

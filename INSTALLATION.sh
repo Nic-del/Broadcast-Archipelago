@@ -24,19 +24,24 @@ then
     NODE_READY=false
 fi
 
-echo "STEP 1: Installing Python dependencies (websockets, psutil, screeninfo)..."
+echo "STEP 1: Installing system dependencies (Tkinter, Pip)..."
+sudo apt update
+sudo apt install python3-tk python3-pip -y
+
+echo ""
+echo "STEP 2: Installing Python dependencies (websockets, psutil, screeninfo)..."
 # Using --break-system-packages for modern distros, or use a venv (safer)
 python3 -m pip install websockets psutil screeninfo --break-system-packages || python3 -m pip install websockets psutil screeninfo
 
 if [ "$NODE_READY" = true ]; then
     echo ""
-    echo "STEP 2: Installing Node.js dependencies for the visual interface..."
+    echo "STEP 3: Installing Node.js dependencies for the visual interface..."
     cd broadcast-app
     npm install
     cd ..
 else
     echo ""
-    echo "STEP 2: Skipped Node.js dependencies (Node not found)."
+    echo "STEP 3: Skipped Node.js dependencies (Node not found)."
     echo "Note: You must use a pre-compiled AppImage to launch the overlay."
 fi
 

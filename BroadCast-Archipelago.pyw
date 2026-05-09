@@ -27,7 +27,7 @@ def save_settings(gui_settings):
         gui_keys = [
             "server", "slot", "password", "multi_slots", "sync_mode", 
             "obs_sync_mode", "enable_overlay", "enable_obs", "display_index",
-            "tracked_players", "win_w", "win_h", "win_x", "win_y", "disable_hw_accel"
+            "tracked_players", "win_w", "win_h", "win_x", "win_y", "disable_hw_accel", "show_locations"
         ]
         
         for k in gui_keys:
@@ -46,7 +46,7 @@ def load_settings():
         "win_w": 400, "win_h": 600, "win_x": -1, "win_y": -1, "display_index": 0,
         "last_game": "", "multi_slots": "", "tracked_players": "",
         "sync_mode": "all", "obs_sync_mode": "all", "enable_overlay": True, "enable_obs": False,
-        "overlay_duration": 10, "obs_duration": 15, "obs_fade": False, "disable_hw_accel": False
+        "overlay_duration": 10, "obs_duration": 15, "obs_fade": False, "disable_hw_accel": False, "show_locations": True
     }
     if os.path.exists(SETTINGS_FILE):
         try:
@@ -201,10 +201,12 @@ class BroadcastLauncherApp:
         self.use_overlay = tk.BooleanVar(value=self.settings.get("enable_overlay", True))
         self.use_obs = tk.BooleanVar(value=self.settings.get("enable_obs", False))
         self.disable_hw = tk.BooleanVar(value=self.settings.get("disable_hw_accel", False))
+        self.show_locs = tk.BooleanVar(value=self.settings.get("show_locations", True))
         
         row1 = tk.Frame(feat_f, bg="#0d0d0f"); row1.pack(fill="x")
         tk.Checkbutton(row1, text="Desktop Overlay", variable=self.use_overlay, bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", activebackground="#0d0d0f").pack(side="left", padx=5)
         tk.Checkbutton(row1, text="OBS Web Server", variable=self.use_obs, bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", activebackground="#0d0d0f").pack(side="left", padx=5)
+        tk.Checkbutton(row1, text="Show Locations", variable=self.show_locs, bg="#0d0d0f", fg="white", selectcolor="#2a2a2c", activebackground="#0d0d0f").pack(side="left", padx=5)
         
         row2 = tk.Frame(feat_f, bg="#0d0d0f"); row2.pack(fill="x", pady=(5, 0))
         tk.Checkbutton(row2, text="Disable HW Acceleration", variable=self.disable_hw, bg="#0d0d0f", fg="#ff7777", selectcolor="#2a2a2c", activebackground="#0d0d0f").pack(side="left", padx=5)
@@ -443,6 +445,7 @@ class BroadcastLauncherApp:
                 "enable_overlay": self.use_overlay.get(),
                 "enable_obs": self.use_obs.get(),
                 "disable_hw_accel": self.disable_hw.get(),
+                "show_locations": self.show_locs.get(),
                 "display_index": self.monitor_select.current(),
                 "tracked_players": self.tracked_entry.get()
             })

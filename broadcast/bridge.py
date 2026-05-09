@@ -231,6 +231,7 @@ async def register_ui(websocket):
                                 "current_slot": websocket.ap_client.slot,
                                 "overlay_sync_mode": settings.get("sync_mode", "all"),
                                 "obs_sync_mode": settings.get("obs_sync_mode", "all"),
+                                "show_locations": settings.get("show_locations", True),
                                 "tracked_players": [p.strip() for p in settings.get("tracked_players", "").split(",") if p.strip()]
                             })
                         except Exception as e: print(f"Error updating sync mode: {e}")
@@ -260,6 +261,7 @@ async def register_ui(websocket):
                             "current_slot": websocket.ap_client.slot,
                             "overlay_sync_mode": settings.get("sync_mode", "all"),
                             "obs_sync_mode": settings.get("obs_sync_mode", "all"),
+                            "show_locations": settings.get("show_locations", True),
                             "tracked_players": players
                         })
                     except Exception as e: print(f"Error updating tracked players: {e}")
@@ -281,6 +283,7 @@ async def register_ui(websocket):
                             "type": "notification",
                             "event": "receive",
                             "item": f"Test {item}",
+                            "location": f"Test Location {i+1}",
                             "from": p1,
                             "to": p2,
                             "class": iclass,
@@ -582,6 +585,7 @@ class ArchipelagoClient:
                             "overlay_duration": ov_duration,
                             "obs_duration": ob_duration,
                             "obs_fade": ob_fade,
+                            "show_locations": s.get("show_locations", True) if 's' in locals() else True,
                             "tracked_players": self.tracked_players
                         })
                         
@@ -777,6 +781,7 @@ class ArchipelagoClient:
             
         if msg_type in ["ItemSend", "ItemReceive"] or any(p.get("type") in ["item_id", "item_name"] for p in parts):
             item_name, p_from, p_to, item_class = "", "Someone", "Someone", 1
+            location_name = ""
             found_players = []
             for part in parts:
                 p_type, text = part.get("type"), part.get("text", "")
@@ -801,14 +806,47 @@ class ArchipelagoClient:
                     flags = part.get("flags", 0)
                     item_class = 0 if flags & 1 else (1 if flags & 2 else (3 if flags & 4 else 2))
                 elif p_type == "item_name": item_name = text
+                elif p_type == "location_id": 
+                    # Smart location lookup
+                    finder_id = str(part.get("player", ""))
+                    finder_game = self.slot_to_game.get(finder_id)
+                    if finder_game and finder_game in self.location_maps:
+                        location_name = self.location_maps[finder_game].get(text)
+                    
+                    # Fallback lookup in all known games
+                    if not location_name:
+                        for g_map in self.location_maps.values():
+                            if text in g_map:
+                                location_name = g_map[text]
+                                break
+                    
+                    if not location_name: location_name = f"Location {text}"
+                elif p_type == "location_name": location_name = text
                 elif p_type == "player_id":
                     p_name = self.player_names.get(str(text), f"Player {text}")
                     found_players.append(p_name)
             
             # Use explicit packet data where available for accurate sender/receiver
             item_data = packet.get("item", {})
-            if isinstance(item_data, dict) and "player" in item_data:
-                p_from = self.player_names.get(str(item_data["player"]), "Someone")
+            if isinstance(item_data, dict):
+                if "player" in item_data:
+                    p_from = self.player_names.get(str(item_data["player"]), "Someone")
+                
+                # Also try to get location from item_data if not found in parts
+                if not location_name and "location" in item_data:
+                    loc_id = str(item_data["location"])
+                    finder_id = str(item_data.get("player", ""))
+                    finder_game = self.slot_to_game.get(finder_id)
+                    if finder_game and finder_game in self.location_maps:
+                        location_name = self.location_maps[finder_game].get(loc_id)
+                    
+                    if not location_name:
+                        for g_map in self.location_maps.values():
+                            if loc_id in g_map:
+                                location_name = g_map[loc_id]
+                                break
+                    
+                    if not location_name: location_name = f"Location {loc_id}"
             elif len(found_players) >= 1:
                 p_from = found_players[0]
 
@@ -841,6 +879,7 @@ class ArchipelagoClient:
                 "type": "notification", 
                 "event": event, 
                 "item": item_name, 
+                "location": location_name,
                 "from": p_from, 
                 "to": p_to, 
                 "class": item_class,

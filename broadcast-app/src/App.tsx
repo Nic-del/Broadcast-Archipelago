@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Trash2,
   Upload,
+  X,
   Image as ImageIcon
 } from 'lucide-react';
 import { cn } from './lib/utils';
@@ -163,6 +164,10 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('broadcast_friends_library');
     return saved ? JSON.parse(saved) : {};
   });
+  const [showLocations, setShowLocations] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_show_locations');
+    return saved ? JSON.parse(saved) : true;
+  });
 
   // Notification Styling Settings
   const [avatarSize, setAvatarSize] = useState<number>(() => {
@@ -303,6 +308,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('broadcast_friends_library', JSON.stringify(friendsLibrary));
   }, [friendsLibrary]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_show_locations', JSON.stringify(showLocations));
+  }, [showLocations]);
 
   useEffect(() => {
     localStorage.setItem('broadcast_avatar_size', avatarSize.toString());
@@ -719,6 +728,12 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCloseApp = () => {
+    if (window.confirm("Are you sure you want to close BroadCast Archipelago?")) {
+      (window as any).electron?.closeApp();
+    }
+  };
+
   const resetStyling = () => {
     const defaults = {
       avatar_size: 48,
@@ -959,8 +974,12 @@ const App: React.FC = () => {
               >
                 Clear
               </button>
-              <button onClick={() => setShowHistory(false)} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
-                <Settings className="w-5 h-5 text-neutral-400" />
+              <button 
+                onClick={handleCloseApp} 
+                className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group"
+                title="Close Application"
+              >
+                <X className="w-5 h-5 text-neutral-400 group-hover:text-red-500" />
               </button>
             </div>
           </div>
@@ -1426,6 +1445,37 @@ const App: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Output Features */}
+                    <div className="space-y-4 bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex justify-between items-center">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400">Show Locations</span>
+                          <span className="text-[8px] text-neutral-500 lowercase italic">Display where items were found</span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const newValue = !showLocations;
+                            setShowLocations(newValue);
+                            if (socketRef.current?.readyState === WebSocket.OPEN) {
+                              socketRef.current.send(JSON.stringify({ 
+                                type: 'update_settings', 
+                                show_locations: newValue 
+                              }));
+                            }
+                          }}
+                          className={cn(
+                            "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                            showLocations ? "bg-accent-useful" : "bg-neutral-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                            showLocations ? "left-4.5" : "left-0.5"
+                          )} />
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Players Selection */}
                     {playerList.length > 0 && (
                       <div className="space-y-6">
@@ -1839,6 +1889,11 @@ const App: React.FC = () => {
                                 : <>{item.from} sent <span className={getItemColor(item.class)}>{item.item}</span> to {item.to}</>)
                             : item.text}
                         </p>
+                        {showLocations && item.location && (
+                          <p className="text-[10px] text-neutral-500 italic mt-0.5">
+                            at {item.location}
+                          </p>
+                        )}
                       </div>
                     </div>
                     {showDebug && item.raw_data && (

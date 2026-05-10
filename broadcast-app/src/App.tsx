@@ -387,6 +387,7 @@ const App: React.FC = () => {
             if (data.notif_color !== undefined) setNotifColor(data.notif_color);
             if (data.notif_layout !== undefined) setNotifLayout(data.notif_layout);
             if (data.notif_padding !== undefined) setNotifPadding(data.notif_padding);
+            if (data.show_locations !== undefined) setShowLocations(data.show_locations);
 
             // Dynamic Mode Sync from Bridge
             const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
@@ -907,6 +908,11 @@ const App: React.FC = () => {
                         ) : (
                           <><span className="text-accent-prog font-bold">{notif.from}</span> sent <span className={cn("font-bold", getItemColor(notif.class))}>{notif.item}</span> to <span className="text-accent-prog font-bold">{notif.to}</span></>
                         )}
+                      </p>
+                    )}
+                    {(notif.event === 'receive' || notif.event === 'send') && showLocations && notif.location && (
+                      <p className="text-[10px] text-neutral-400 italic mt-1">
+                        at <span className="text-neutral-200 font-medium not-italic">{notif.location}</span>
                       </p>
                     )}
                     {notif.event === 'hint' && (
@@ -1881,8 +1887,8 @@ const App: React.FC = () => {
                             : item.text}
                         </p>
                         {showLocations && item.location && (
-                          <p className="text-[10px] text-neutral-500 italic mt-0.5">
-                            at {item.location}
+                          <p className="text-[10px] text-neutral-400 italic mt-0.5">
+                            at <span className="text-neutral-200 font-medium not-italic">{item.location}</span>
                           </p>
                         )}
                       </div>

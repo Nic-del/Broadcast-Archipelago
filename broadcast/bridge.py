@@ -87,11 +87,18 @@ async def register_ui(websocket):
             "player_avatars": avatar_settings.get("player_avatars", {}),
             "friends_library": avatar_settings.get("friends_library", {}),
             "avatar_size": avatar_settings.get("avatar_size", 48),
+            "text_size": avatar_settings.get("text_size", 14),
             "show_timestamp": avatar_settings.get("show_timestamp", True),
             "show_event_label": avatar_settings.get("show_event_label", True),
             "notif_color": avatar_settings.get("notif_color", "#171717"),
             "notif_layout": avatar_settings.get("notif_layout", "standard"),
             "notif_padding": avatar_settings.get("notif_padding", 12),
+            "use_grid_popup_overlay": avatar_settings.get("use_grid_popup_overlay", False),
+            "use_grid_popup_obs": avatar_settings.get("use_grid_popup_obs", False),
+            "grid_max_people": avatar_settings.get("grid_max_people", 5),
+            "grid_layout_overlay": avatar_settings.get("grid_layout_overlay", "horizontal"),
+            "grid_layout_obs": avatar_settings.get("grid_layout_obs", "horizontal"),
+            "single_bubble_focus": avatar_settings.get("single_bubble_focus", True),
             "show_locations": show_locs
         }))
 
@@ -159,7 +166,10 @@ async def register_ui(websocket):
                         
                         # Update specific keys
                         keys = ["custom_mode_overlay", "custom_mode_obs", "player_avatars", "friends_library", 
-                                "avatar_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding"]
+                                "avatar_size", "text_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding",
+                                "use_grid_popup_overlay", "use_grid_popup_obs", "grid_max_people",
+                                "grid_layout_overlay", "grid_layout_obs",
+                                "single_bubble_focus"]
                         for k in keys:
                             if k in data: avatar_settings[k] = data[k]
                         

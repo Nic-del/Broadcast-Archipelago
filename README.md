@@ -9,7 +9,7 @@
 
 ---
 
-## ✨ Latest Features (v1.1.0)
+## ✨ Latest Features (v1.1.1)
 
 ### 🖼️ Custom Avatars & Friends Library
 - **Player Avatars**: Personalize your notifications by uploading custom images for each player.
@@ -64,7 +64,6 @@ This edition is fully optimized for Linux distributions, including immutable sys
 - 📦 **AppImage Support**: Automatic detection of AppImage builds for dependency-free installation.
 
 ## 🛠️ System Architecture
-
 1.  **Control Center (`BroadCast-Archipelago.py`)**: The visual configuration interface to position the overlay and manage connections.
 2.  **The Bridge (`broadcast/bridge.py`)**: The core engine maintaining the connection to the Archipelago server and handling data filtering.
 3.  **Broadcast App (`broadcast-app`)**: The visual layer (Vite + React + Framer Motion) delivering smooth 60 FPS animations.

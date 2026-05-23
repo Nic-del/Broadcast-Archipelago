@@ -16,7 +16,7 @@ import {
   ArrowRight,
   Trash2,
   Upload,
-  X
+  X,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -41,6 +41,9 @@ interface GameNotification {
   finder?: string;
   found?: boolean;
 }
+
+
+
 
 interface DisplayInfo {
   id: number;
@@ -158,10 +161,52 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : true;
   });
 
+  const [useGridPopupOverlay, setUseGridPopupOverlay] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_use_grid_popup_overlay');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [useGridPopupOBS, setUseGridPopupOBS] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_use_grid_popup_obs');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [gridMaxPeople, setGridMaxPeople] = useState<number>(() => {
+    const saved = localStorage.getItem('broadcast_grid_max_people');
+    return saved ? parseInt(saved) : 5;
+  });
+  const [gridLayoutOverlay, setGridLayoutOverlay] = useState<'horizontal' | 'vertical'>(() => {
+    const saved = localStorage.getItem('broadcast_grid_layout_overlay');
+    return (saved as any) || 'horizontal';
+  });
+  const [gridLayoutOBS, setGridLayoutOBS] = useState<'horizontal' | 'vertical'>(() => {
+    const saved = localStorage.getItem('broadcast_grid_layout_obs');
+    return (saved as any) || 'horizontal';
+  });
+  const [singleBubbleFocus, setSingleBubbleFocus] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_single_bubble_focus');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [gridPlayers, setGridPlayers] = useState<{
+    name: string;
+    lastActive: number;
+    activeNotification: GameNotification | null;
+    notifId: string | null;
+  }[]>(() => {
+    try {
+      const saved = localStorage.getItem('broadcast_grid_players');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // Notification Styling Settings
   const [avatarSize, setAvatarSize] = useState<number>(() => {
     const saved = localStorage.getItem('broadcast_avatar_size');
     return saved ? parseInt(saved) : 48;
+  });
+  const [textSize, setTextSize] = useState<number>(() => {
+    const saved = localStorage.getItem('broadcast_text_size');
+    return saved ? parseInt(saved) : 14;
   });
   const [showTimestamp, setShowTimestamp] = useState<boolean>(() => {
     const saved = localStorage.getItem('broadcast_show_timestamp');
@@ -249,11 +294,28 @@ const App: React.FC = () => {
   const syncModeRef = useRef<string>(syncMode);
   const trackedPlayersRef = useRef<string[]>(trackedPlayers);
   const durationsRef = useRef({ overlay: 10, obs: 15, fade: false });
+  const gridMaxPeopleRef = useRef<number>(gridMaxPeople);
+  const singleBubbleFocusRef = useRef<boolean>(singleBubbleFocus);
 
   // Sync refs with state
   useEffect(() => {
     syncModeRef.current = currentSyncMode;
   }, [currentSyncMode]);
+
+  useEffect(() => {
+    gridMaxPeopleRef.current = gridMaxPeople;
+    // Slice grid players if max count is reduced
+    setGridPlayers(prev => {
+      if (prev.length > gridMaxPeople) {
+        const sorted = [...prev].sort((a, b) => b.lastActive - a.lastActive);
+        const sliced = sorted.slice(0, gridMaxPeople);
+        const updated = prev.filter(p => sliced.some(s => s.name === p.name));
+        localStorage.setItem('broadcast_grid_players', JSON.stringify(updated));
+        return updated;
+      }
+      return prev;
+    });
+  }, [gridMaxPeople]);
 
   useEffect(() => {
     durationsRef.current = { overlay: overlayDuration, obs: obsDuration, fade: obsFade };
@@ -291,6 +353,31 @@ const App: React.FC = () => {
   }, [isCustomModeOBS]);
 
   useEffect(() => {
+    localStorage.setItem('broadcast_use_grid_popup_overlay', JSON.stringify(useGridPopupOverlay));
+  }, [useGridPopupOverlay]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_use_grid_popup_obs', JSON.stringify(useGridPopupOBS));
+  }, [useGridPopupOBS]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_grid_max_people', gridMaxPeople.toString());
+  }, [gridMaxPeople]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_grid_layout_overlay', gridLayoutOverlay);
+  }, [gridLayoutOverlay]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_grid_layout_obs', gridLayoutOBS);
+  }, [gridLayoutOBS]);
+
+  useEffect(() => {
+    singleBubbleFocusRef.current = singleBubbleFocus;
+    localStorage.setItem('broadcast_single_bubble_focus', JSON.stringify(singleBubbleFocus));
+  }, [singleBubbleFocus]);
+
+  useEffect(() => {
     localStorage.setItem('broadcast_player_avatars', JSON.stringify(playerAvatars));
   }, [playerAvatars]);
 
@@ -305,6 +392,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('broadcast_avatar_size', avatarSize.toString());
   }, [avatarSize]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_text_size', textSize.toString());
+  }, [textSize]);
 
   useEffect(() => {
     localStorage.setItem('broadcast_show_timestamp', JSON.stringify(showTimestamp));
@@ -377,14 +468,22 @@ const App: React.FC = () => {
             if (data.custom_mode_obs !== undefined) setIsCustomModeOBS(data.custom_mode_obs);
             if (data.player_avatars) setPlayerAvatars(data.player_avatars);
             if (data.friends_library) setFriendsLibrary(data.friends_library);
+            if (data.use_grid_popup_overlay !== undefined) setUseGridPopupOverlay(data.use_grid_popup_overlay);
+            if (data.use_grid_popup_obs !== undefined) setUseGridPopupOBS(data.use_grid_popup_obs);
+            if (data.grid_max_people !== undefined) setGridMaxPeople(data.grid_max_people);
+            if (data.grid_layout_overlay !== undefined) setGridLayoutOverlay(data.grid_layout_overlay);
+            if (data.grid_layout_obs !== undefined) setGridLayoutOBS(data.grid_layout_obs);
+            if (data.single_bubble_focus !== undefined) setSingleBubbleFocus(data.single_bubble_focus);
             
             // Style Sync
             if (data.avatar_size !== undefined) setAvatarSize(data.avatar_size);
+            if (data.text_size !== undefined) setTextSize(data.text_size);
             if (data.show_timestamp !== undefined) setShowTimestamp(data.show_timestamp);
             if (data.show_event_label !== undefined) setShowEventLabel(data.show_event_label);
             if (data.notif_color !== undefined) setNotifColor(data.notif_color);
             if (data.notif_layout !== undefined) setNotifLayout(data.notif_layout);
             if (data.notif_padding !== undefined) setNotifPadding(data.notif_padding);
+            if (data.show_locations !== undefined) setShowLocations(data.show_locations);
 
             // Dynamic Mode Sync from Bridge
             const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
@@ -416,7 +515,9 @@ const App: React.FC = () => {
             console.log('Clearing history from bridge command');
             setNotifications([]);
             setHistory([]);
+            setGridPlayers([]);
             localStorage.removeItem('broadcast_history');
+            localStorage.removeItem('broadcast_grid_players');
             return;
           }
 
@@ -480,6 +581,69 @@ const App: React.FC = () => {
               }, duration * 1000);
             }
 
+            // Grid Popup Mode LRU Logic
+            if (newNotif.event === 'receive' || newNotif.event === 'send') {
+              const playerName = newNotif.from;
+              if (playerName) {
+                setGridPlayers(prev => {
+                  const existingIdx = prev.findIndex(p => p.name === playerName);
+                  let updated = [...prev];
+                  const newEntry = {
+                    name: playerName,
+                    lastActive: Date.now(),
+                    activeNotification: newNotif,
+                    notifId: newNotif.id
+                  };
+                  if (existingIdx !== -1) {
+                    updated[existingIdx] = newEntry;
+                  } else {
+                    if (updated.length < gridMaxPeopleRef.current) {
+                      updated.push(newEntry);
+                    } else {
+                      // LRU displacement
+                      let oldestIdx = 0;
+                      for (let i = 1; i < updated.length; i++) {
+                        if (updated[i].lastActive < updated[oldestIdx].lastActive) {
+                          oldestIdx = i;
+                        }
+                      }
+                      updated[oldestIdx] = newEntry;
+                    }
+                  }
+                  
+                  // If single bubble focus is enabled, clear notifications for other players
+                  if (singleBubbleFocusRef.current) {
+                    updated = updated.map(p => {
+                      if (p.name !== playerName) {
+                        return { ...p, activeNotification: null, notifId: null };
+                      }
+                      return p;
+                    });
+                  }
+
+                  localStorage.setItem('broadcast_grid_players', JSON.stringify(updated));
+                  return updated;
+                });
+
+                // Set timer to clear active popup
+                if (shouldFade && duration > 0) {
+                  setTimeout(() => {
+                    if (!isMounted) return;
+                    setGridPlayers(prev => {
+                      const afterClear = prev.map(p => {
+                        if (p.name === playerName && p.notifId === newNotif.id) {
+                          return { ...p, activeNotification: null };
+                        }
+                        return p;
+                      });
+                      localStorage.setItem('broadcast_grid_players', JSON.stringify(afterClear));
+                      return afterClear;
+                    });
+                  }, duration * 1000);
+                }
+              }
+            }
+
             // Also add to persistent hints if it's a hint
             if (data.event === 'hint') {
               setPersistentHints(prev => {
@@ -498,8 +662,15 @@ const App: React.FC = () => {
             if (data.custom_mode_obs !== undefined) setIsCustomModeOBS(data.custom_mode_obs);
             if (data.player_avatars) setPlayerAvatars(data.player_avatars);
             if (data.friends_library) setFriendsLibrary(data.friends_library);
+            if (data.use_grid_popup_overlay !== undefined) setUseGridPopupOverlay(data.use_grid_popup_overlay);
+            if (data.use_grid_popup_obs !== undefined) setUseGridPopupOBS(data.use_grid_popup_obs);
+            if (data.grid_max_people !== undefined) setGridMaxPeople(data.grid_max_people);
+            if (data.grid_layout_overlay !== undefined) setGridLayoutOverlay(data.grid_layout_overlay);
+            if (data.grid_layout_obs !== undefined) setGridLayoutOBS(data.grid_layout_obs);
+            if (data.single_bubble_focus !== undefined) setSingleBubbleFocus(data.single_bubble_focus);
             
             if (data.avatar_size !== undefined) setAvatarSize(data.avatar_size);
+            if (data.text_size !== undefined) setTextSize(data.text_size);
             if (data.show_timestamp !== undefined) setShowTimestamp(data.show_timestamp);
             if (data.show_event_label !== undefined) setShowEventLabel(data.show_event_label);
             if (data.notif_color !== undefined) setNotifColor(data.notif_color);
@@ -599,6 +770,38 @@ const App: React.FC = () => {
       socketRef.current.send(JSON.stringify({ 
         type: 'update_settings', 
         [key]: value 
+      }));
+    }
+  };
+
+  const selectOverlayModeSetting = (mode: 'disabled' | 'standard' | 'grid') => {
+    const isCustom = mode === 'standard';
+    const isGrid = mode === 'grid';
+    
+    setIsCustomModeOverlay(isCustom);
+    setUseGridPopupOverlay(isGrid);
+    
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'update_avatar_data',
+        custom_mode_overlay: isCustom,
+        use_grid_popup_overlay: isGrid
+      }));
+    }
+  };
+
+  const selectOBSModeSetting = (mode: 'disabled' | 'standard' | 'grid') => {
+    const isCustom = mode === 'standard';
+    const isGrid = mode === 'grid';
+    
+    setIsCustomModeOBS(isCustom);
+    setUseGridPopupOBS(isGrid);
+    
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'update_avatar_data',
+        custom_mode_obs: isCustom,
+        use_grid_popup_obs: isGrid
       }));
     }
   };
@@ -726,6 +929,7 @@ const App: React.FC = () => {
   const resetStyling = () => {
     const defaults = {
       avatar_size: 48,
+      text_size: 14,
       show_timestamp: true,
       show_event_label: true,
       notif_color: '#171717',
@@ -734,6 +938,7 @@ const App: React.FC = () => {
     };
     
     setAvatarSize(defaults.avatar_size);
+    setTextSize(defaults.text_size);
     setShowTimestamp(defaults.show_timestamp);
     setShowEventLabel(defaults.show_event_label);
     setNotifColor(defaults.notif_color);
@@ -777,24 +982,193 @@ const App: React.FC = () => {
     }
   };
 
+  const useGridPopup = isStreamMode ? useGridPopupOBS : useGridPopupOverlay;
+  const gridLayout = isStreamMode ? gridLayoutOBS : gridLayoutOverlay;
+
+  const { renderedAvatarSize, renderedGap } = useMemo(() => {
+    const N = gridPlayers.length;
+    
+    if (useGridPopup && gridLayout === 'vertical' && N > 0) {
+      const height = windowBounds.height || window.innerHeight;
+      const padding = 48; // padding around the window edges
+      const availableHeight = height - padding;
+      
+      const defaultTotal = N * (avatarSize * 1.5) + (N - 1) * 24;
+      
+      if (defaultTotal > availableHeight) {
+        const k = availableHeight / defaultTotal;
+        const scaledAvatarSize = avatarSize * k;
+        
+        // Don't shrink below a minimum of 24px base avatar size safeguard
+        const finalAvatarSize = Math.max(24, scaledAvatarSize);
+        // Compute gap that fits the remaining height
+        const remainingHeight = availableHeight - N * (finalAvatarSize * 1.5);
+        const finalGap = N > 1 ? Math.max(6, remainingHeight / (N - 1)) : 24;
+        
+        return {
+          renderedAvatarSize: finalAvatarSize,
+          renderedGap: finalGap
+        };
+      }
+    }
+    
+    return {
+      renderedAvatarSize: avatarSize,
+      renderedGap: 24
+    };
+  }, [gridPlayers.length, avatarSize, useGridPopup, gridLayout, windowBounds.height]);
+
   const isFlipped = useMemo(() => {
     return (windowBounds.x < (displays[activeDisplayIndex]?.bounds.x || 0) + 40);
   }, [windowBounds, displays, activeDisplayIndex]);
 
   return (
     <div className="h-screen w-screen flex flex-col md:flex-row bg-transparent">
-      {/* Overlay Area (Notifications) */}
+      {/* Overlay Area (Notifications / Grid Avatars) */}
       <div className={cn(
         "flex-1 relative overflow-hidden pointer-events-none p-4",
         isStreamMode && "bg-transparent" // OBS mode MUST be transparent
       )}>
-        {/* Notifications offset intelligently based on the button position */}
-        <div className={cn(
-          "absolute bottom-4 flex flex-col gap-3 items-start max-w-sm transition-all duration-300",
-          !isStreamMode ? (isFlipped ? "right-28 left-6" : "left-28 right-6") : "left-6 right-6"
-        )}>
-          <AnimatePresence>
-            {notifications.map((notif) => (
+        {useGridPopup ? (
+          /* Grid & Popup Mode */
+          <div 
+            className={cn(
+              gridLayout === 'horizontal' 
+                ? "absolute bottom-6 left-6 right-6 flex flex-row justify-center items-end gap-8 flex-wrap transition-all duration-300 pointer-events-none"
+                : "absolute top-6 bottom-6 right-6 flex flex-col justify-center items-end transition-all duration-300 pointer-events-none",
+              gridLayout === 'horizontal' && !isStreamMode ? (isFlipped ? "pr-24" : "pl-24") : "" // Offset slightly for desktop launcher button
+            )}
+            style={gridLayout === 'vertical' ? { gap: `${renderedGap}px` } : undefined}
+          >
+            <AnimatePresence>
+              {gridPlayers.map((player) => (
+                <motion.div
+                  key={player.name}
+                  layout
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className={cn(
+                    "flex relative group",
+                    gridLayout === 'horizontal' ? "flex-col items-center min-w-[100px]" : "flex-row justify-end items-center"
+                  )}
+                >
+                  {/* Popup Bubble */}
+                  <AnimatePresence>
+                    {player.activeNotification && (
+                      <motion.div
+                        initial={
+                          gridLayout === 'horizontal' 
+                            ? { opacity: 0, scale: 0.8, y: 15 } 
+                            : { opacity: 0, scale: 0.8, x: -15 }
+                        }
+                        animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                        exit={
+                          gridLayout === 'horizontal' 
+                            ? { opacity: 0, scale: 0.8, y: 15 } 
+                            : { opacity: 0, scale: 0.8, x: -15 }
+                        }
+                        className={cn(
+                          "absolute p-3 rounded-2xl border backdrop-blur-xl shadow-2xl z-30 pointer-events-auto transition-all duration-300",
+                          gridLayout === 'horizontal' ? "bottom-[110%] mb-3 w-64" : "right-[110%] mr-3 w-64",
+                          getAccentColor(player.activeNotification.class)
+                        )}
+                        style={{
+                          backgroundColor: `${notifColor}${Math.floor(bgOpacity * 2.55).toString(16).padStart(2, '0')}`,
+                          padding: `${notifPadding}px`,
+                        }}
+                      >
+                        {/* Triangle arrow pointing to the avatar */}
+                        <div 
+                          className={cn(
+                            "absolute w-3 h-3 rotate-45 border",
+                            gridLayout === 'horizontal' 
+                              ? "-bottom-1.5 left-1/2 -translate-x-1/2 border-r border-b" 
+                              : "top-1/2 -translate-y-1/2 -right-1.5 border-t border-r"
+                          )}
+                          style={{
+                            backgroundColor: `${notifColor}`,
+                            borderColor: 'inherit'
+                          }}
+                        />
+                        
+                        {/* Bubble Content */}
+                        <div className="text-left space-y-1">
+                          {/* Header */}
+                          {(showEventLabel || showTimestamp) && (
+                            <div className="flex justify-between items-center border-b border-white/5 pb-1 mb-1">
+                              {showEventLabel && (
+                                <span className="font-bold uppercase tracking-wider text-neutral-400" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
+                                  {player.activeNotification.from === player.activeNotification.to ? 'Item Found' : 'Sent Item'}
+                                </span>
+                              )}
+                              {showTimestamp && <span className="text-neutral-500" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>{player.activeNotification.timestamp}</span>}
+                            </div>
+                          )}
+                          
+                          {/* Message */}
+                          <p className="leading-tight font-medium text-white" style={{ fontSize: `${Math.max(10, textSize - 2)}px` }}>
+                            {player.activeNotification.from === player.activeNotification.to ? (
+                              <>Found <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span></>
+                            ) : (
+                              <>Sent <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span> to <span className="text-accent-prog font-bold">{player.activeNotification.to}</span></>
+                            )}
+                          </p>
+                          
+                          {showLocations && player.activeNotification.location && (
+                            <p className="text-neutral-400 italic mt-0.5" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
+                              at <span className="text-neutral-200">{player.activeNotification.location}</span>
+                            </p>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+ 
+                  {/* Avatar Frame */}
+                  <div className="relative">
+                    {/* Animated Ring on recent activity */}
+                    {player.activeNotification && (
+                      <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 animate-spin blur-sm opacity-70" />
+                    )}
+                    
+                    <div 
+                      className={cn(
+                        "relative rounded-full flex items-center justify-center border-2 overflow-hidden shadow-lg bg-neutral-800 transition-transform duration-300",
+                        player.activeNotification ? "scale-105 border-white" : "border-white/10 hover:border-white/30"
+                      )}
+                      style={{ width: `${renderedAvatarSize * 1.5}px`, height: `${renderedAvatarSize * 1.5}px` }}
+                    >
+                      {playerAvatars[player.name] ? (
+                        <img src={playerAvatars[player.name]} alt={player.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="text-neutral-500" style={{ width: `${renderedAvatarSize * 0.75}px`, height: `${renderedAvatarSize * 0.75}px` }} />
+                      )}
+                    </div>
+                  </div>
+ 
+                  {/* Player Name */}
+                  <span className={cn(
+                    "text-[10px] font-bold text-neutral-200 tracking-wide text-shadow bg-black/40 px-2.5 py-0.5 rounded-full border border-white/5 whitespace-nowrap transition-all duration-200",
+                    gridLayout === 'horizontal' 
+                      ? "mt-2" 
+                      : "absolute right-[115%] top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none",
+                    gridLayout === 'vertical' && player.activeNotification && "group-hover:opacity-0" // Hide name label on hover if speech bubble is active to prevent overlap
+                  )}>
+                    {player.name}
+                  </span>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
+          /* Notifications offset intelligently based on the button position */
+          <div className={cn(
+            "absolute bottom-4 flex flex-col gap-3 items-start max-w-sm transition-all duration-300",
+            !isStreamMode ? (isFlipped ? "right-28 left-6" : "left-28 right-6") : "left-6 right-6"
+          )}>
+            <AnimatePresence>
+              {notifications.map((notif) => (
               <motion.div
                 key={notif.id}
                 initial={{ opacity: 0, x: -50, scale: 0.9 }}
@@ -887,17 +1261,17 @@ const App: React.FC = () => {
                       notifLayout === 'vertical' && "justify-center gap-4"
                     )}>
                       {showEventLabel && (
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                        <span className="font-bold uppercase tracking-widest text-neutral-500" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>
                           {(notif.event === 'receive' || notif.event === 'send') 
                             ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
                             : 'System Message'}
                         </span>
                       )}
-                      {showTimestamp && <span className="text-[10px] text-neutral-600">{notif.timestamp}</span>}
+                      {showTimestamp && <span className="text-neutral-600" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>{notif.timestamp}</span>}
                     </div>
                   )}
                   
-                  <div className="text-[14px] leading-tight font-medium">
+                  <div className="leading-tight font-medium" style={{ fontSize: `${textSize}px` }}>
                     {(notif.event === 'receive' || notif.event === 'send') && (
                       <p>
                         {notif.from === notif.to ? (
@@ -907,15 +1281,20 @@ const App: React.FC = () => {
                         )}
                       </p>
                     )}
+                    {(notif.event === 'receive' || notif.event === 'send') && showLocations && notif.location && (
+                      <p className="text-neutral-400 italic mt-1" style={{ fontSize: `${Math.max(9, textSize - 4)}px` }}>
+                        at <span className="text-neutral-200 font-medium not-italic">{notif.location}</span>
+                      </p>
+                    )}
                     {notif.event === 'hint' && (
                       <div className="space-y-1">
                         <p>
                           <span className="text-accent-prog font-bold">{notif.owner}</span>'s <span className="text-accent-junk font-bold">{notif.item}</span>
                         </p>
-                        <p className="text-[11px] text-neutral-400">
+                        <p className="text-neutral-400" style={{ fontSize: `${Math.max(10, textSize - 3)}px` }}>
                           is at <span className="text-white font-medium">{notif.location}</span>
                         </p>
-                        <p className="text-[9px] text-neutral-500 italic">
+                        <p className="text-neutral-500 italic" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
                           (<span className="text-sky-400 font-bold not-italic">{notif.finder}</span>) {notif.found && <span className="text-accent-useful ml-1">✓</span>}
                         </p>
                       </div>
@@ -929,6 +1308,7 @@ const App: React.FC = () => {
             ))}
           </AnimatePresence>
         </div>
+      )}
       </div>
 
       {/* Control Panel (Visible on Second Screen for configuration/history) */}
@@ -1229,7 +1609,7 @@ const App: React.FC = () => {
                               </div>
                               {/* Autocomplete Suggestions */}
                               {hintInput.length >= 2 && (
-                                <div className="absolute bottom-full mb-2 left-0 right-0 bg-neutral-900 border border-white/10 rounded-lg shadow-2xl max-h-48 overflow-y-auto z-50 custom-scrollbar animate-in fade-in slide-in-from-bottom-2">
+                                <div className="absolute top-full mt-2 left-0 right-0 bg-neutral-900 border border-white/10 rounded-lg shadow-2xl max-h-48 overflow-y-auto z-50 custom-scrollbar animate-in fade-in slide-in-from-top-2">
                                   {[
                                     ...itemList.map(i => ({ name: i, type: 'Item' })),
                                     ...locationList.map(l => ({ name: l, type: 'Location' })),
@@ -1547,64 +1927,238 @@ const App: React.FC = () => {
                       <div className="h-4 w-1 bg-pink-500 rounded-full" />
                       <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Custom Mode</h3>
                     </div>
-
                     <div className="space-y-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
+                      <div className="space-y-5">
+                        
+                        {/* Desktop Overlay Mode Selection */}
+                        <div className="space-y-2.5">
                           <div className="flex flex-col">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-white">Desktop Overlay</span>
-                            <span className="text-[8px] text-neutral-500 lowercase italic">Use avatars on your desktop screen</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-white">Desktop Overlay Mode</span>
+                            <span className="text-[8px] text-neutral-500 lowercase italic">Choose the active style on your desktop screen</span>
                           </div>
-                          <button 
-                            onClick={() => {
-                              const newValue = !isCustomModeOverlay;
-                              setIsCustomModeOverlay(newValue);
-                              if (socketRef.current?.readyState === WebSocket.OPEN) {
-                                socketRef.current.send(JSON.stringify({
-                                  type: 'update_avatar_data',
-                                  custom_mode_overlay: newValue
-                                }));
-                              }
-                            }}
-                            className={cn(
-                              "w-8 h-4 rounded-full relative transition-colors duration-200",
-                              isCustomModeOverlay ? "bg-indigo-500" : "bg-neutral-800"
-                            )}
-                          >
-                            <div className={cn(
-                              "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
-                              isCustomModeOverlay ? "left-4.5" : "left-0.5"
-                            )} />
-                          </button>
+                          <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/45 rounded-xl border border-white/5">
+                            <button
+                              onClick={() => selectOverlayModeSetting('disabled')}
+                              className={cn(
+                                "py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer",
+                                (!isCustomModeOverlay && !useGridPopupOverlay)
+                                  ? "bg-white/10 text-white shadow-lg border border-white/10" 
+                                  : "text-neutral-500 hover:text-neutral-300"
+                              )}
+                            >
+                              Disabled
+                            </button>
+                            <button
+                              onClick={() => selectOverlayModeSetting('standard')}
+                              className={cn(
+                                "py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer",
+                                (isCustomModeOverlay && !useGridPopupOverlay)
+                                  ? "bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 shadow-lg" 
+                                  : "text-neutral-500 hover:text-neutral-300"
+                              )}
+                            >
+                              Notification List
+                            </button>
+                            <button
+                              onClick={() => selectOverlayModeSetting('grid')}
+                              className={cn(
+                                "py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer",
+                                (!isCustomModeOverlay && useGridPopupOverlay)
+                                  ? "bg-pink-500/20 border border-pink-500/40 text-pink-300 shadow-lg" 
+                                  : "text-neutral-500 hover:text-neutral-300"
+                              )}
+                            >
+                              Avatar Grid
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                        {/* OBS / Stream Mode Selection */}
+                        <div className="space-y-2.5 pt-4 border-t border-white/5">
                           <div className="flex flex-col">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-white">OBS / Stream Mode</span>
-                            <span className="text-[8px] text-neutral-500 lowercase italic">Use avatars in your stream overlay</span>
+                            <span className="text-[8px] text-neutral-500 lowercase italic">Choose the active style for your stream overlays</span>
                           </div>
-                          <button 
-                            onClick={() => {
-                              const newValue = !isCustomModeOBS;
-                              setIsCustomModeOBS(newValue);
-                              if (socketRef.current?.readyState === WebSocket.OPEN) {
-                                socketRef.current.send(JSON.stringify({
-                                  type: 'update_avatar_data',
-                                  custom_mode_obs: newValue
-                                }));
-                              }
-                            }}
-                            className={cn(
-                              "w-8 h-4 rounded-full relative transition-colors duration-200",
-                              isCustomModeOBS ? "bg-emerald-500" : "bg-neutral-800"
-                            )}
-                          >
-                            <div className={cn(
-                              "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
-                              isCustomModeOBS ? "left-4.5" : "left-0.5"
-                            )} />
-                          </button>
+                          <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/45 rounded-xl border border-white/5">
+                            <button
+                              onClick={() => selectOBSModeSetting('disabled')}
+                              className={cn(
+                                "py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer",
+                                (!isCustomModeOBS && !useGridPopupOBS)
+                                  ? "bg-white/10 text-white shadow-lg border border-white/10" 
+                                  : "text-neutral-500 hover:text-neutral-300"
+                                )}
+                            >
+                              Disabled
+                            </button>
+                            <button
+                              onClick={() => selectOBSModeSetting('standard')}
+                              className={cn(
+                                "py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer",
+                                (isCustomModeOBS && !useGridPopupOBS)
+                                  ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 shadow-lg" 
+                                  : "text-neutral-500 hover:text-neutral-300"
+                              )}
+                            >
+                              Notification List
+                            </button>
+                            <button
+                              onClick={() => selectOBSModeSetting('grid')}
+                              className={cn(
+                                "py-2 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all text-center cursor-pointer",
+                                (!isCustomModeOBS && useGridPopupOBS)
+                                  ? "bg-pink-500/20 border-pink-500/40 text-pink-300 shadow-lg" 
+                                  : "text-neutral-500 hover:text-neutral-300"
+                              )}
+                            >
+                              Avatar Grid
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Grid max capacity slider and Reset button */}
+                        {(useGridPopupOverlay || useGridPopupOBS) && (
+                          <div className="space-y-4 pt-3 border-t border-white/5 animate-in fade-in duration-200">
+                            
+                            {/* Overlay Grid Layout Toggle */}
+                            {useGridPopupOverlay && (
+                              <div className="space-y-2">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-pink-400">Overlay Grid Layout</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setGridLayoutOverlay('horizontal');
+                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_overlay: 'horizontal' }));
+                                      }
+                                    }}
+                                    className={cn(
+                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                      gridLayoutOverlay === 'horizontal'
+                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
+                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                    )}
+                                  >
+                                    Horizontal (Bottom)
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setGridLayoutOverlay('vertical');
+                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_overlay: 'vertical' }));
+                                      }
+                                    }}
+                                    className={cn(
+                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                      gridLayoutOverlay === 'vertical'
+                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
+                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                    )}
+                                  >
+                                    Vertical (Right)
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* OBS Grid Layout Toggle */}
+                            {useGridPopupOBS && (
+                              <div className="space-y-2 pt-2 border-t border-white/5">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-pink-400">OBS Grid Layout</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setGridLayoutOBS('horizontal');
+                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_obs: 'horizontal' }));
+                                      }
+                                    }}
+                                    className={cn(
+                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                      gridLayoutOBS === 'horizontal'
+                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
+                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                    )}
+                                  >
+                                    Horizontal (Bottom)
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setGridLayoutOBS('vertical');
+                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_obs: 'vertical' }));
+                                      }
+                                    }}
+                                    className={cn(
+                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                      gridLayoutOBS === 'vertical'
+                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
+                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                    )}
+                                  >
+                                    Vertical (Right)
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Single Bubble Focus Toggle */}
+                            <div className="flex justify-between items-center pt-3 border-t border-white/5">
+                              <div className="flex flex-col">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-pink-400">Single Bubble Focus</span>
+                                <span className="text-[8px] text-neutral-500 lowercase italic">Only show the most recent bubble to prevent overlaps</span>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  const newValue = !singleBubbleFocus;
+                                  setSingleBubbleFocus(newValue);
+                                  if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                    socketRef.current.send(JSON.stringify({
+                                      type: 'update_avatar_data',
+                                      single_bubble_focus: newValue
+                                    }));
+                                  }
+                                }}
+                                className={cn(
+                                  "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                                  singleBubbleFocus ? "bg-pink-500" : "bg-neutral-800"
+                                )}
+                              >
+                                <div className={cn(
+                                  "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                                  singleBubbleFocus ? "left-4.5" : "left-0.5"
+                                )} />
+                              </button>
+                            </div>
+
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-neutral-400 pt-2 border-t border-white/5">
+                              <span>Max Grid Avatars</span>
+                              <span className="text-pink-400">{gridMaxPeople} Players</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <input 
+                                type="range" min="1" max="10" value={gridMaxPeople} 
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setGridMaxPeople(val);
+                                  if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                    socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_max_people: val }));
+                                  }
+                                }}
+                                className="flex-1 accent-pink-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                              />
+                              <button
+                                onClick={() => {
+                                  setGridPlayers([]);
+                                  localStorage.removeItem('broadcast_grid_players');
+                                }}
+                                className="text-[9px] uppercase font-bold text-red-400 hover:text-red-300 transition-colors bg-red-500/10 border border-red-500/25 px-2.5 py-1 rounded shrink-0 pointer-events-auto"
+                              >
+                                Reset Grid
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="pt-4 border-t border-white/5 space-y-4">
@@ -1633,6 +2187,24 @@ const App: React.FC = () => {
                                 setAvatarSize(val);
                                 if (socketRef.current?.readyState === WebSocket.OPEN) {
                                   socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', avatar_size: val }));
+                                }
+                              }}
+                              className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-neutral-400">
+                              <span>Text Size</span>
+                              <span>{textSize}px</span>
+                            </div>
+                            <input 
+                              type="range" min="10" max="24" value={textSize} 
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setTextSize(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', text_size: val }));
                                 }
                               }}
                               className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
@@ -1879,8 +2451,8 @@ const App: React.FC = () => {
                             : item.text}
                         </p>
                         {showLocations && item.location && (
-                          <p className="text-[10px] text-neutral-500 italic mt-0.5">
-                            at {item.location}
+                          <p className="text-[10px] text-neutral-400 italic mt-0.5">
+                            at <span className="text-neutral-200 font-medium not-italic">{item.location}</span>
                           </p>
                         )}
                       </div>

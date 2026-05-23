@@ -41,7 +41,7 @@ async def register_ui(websocket):
         settings_path = os.path.join(root_dir, "broadcast_settings.json")
         
         overlay_mode, obs_mode, tracked_players = "all", "all", []
-        ov_duration, ob_duration, ob_fade, disable_hw_accel = 10, 0, False, False
+        ov_duration, ob_duration, ob_fade, disable_hw_accel, show_locs = 10, 0, False, False, True
         try:
             if os.path.exists(settings_path):
                 with open(settings_path, "r") as f:
@@ -52,6 +52,7 @@ async def register_ui(websocket):
                     ob_duration = s.get("obs_duration", 15)
                     ob_fade = s.get("obs_fade", False)
                     disable_hw_accel = s.get("disable_hw_accel", False)
+                    show_locs = s.get("show_locations", True)
                     tracked_str = s.get("tracked_players", "")
                     if tracked_str:
                         tracked_players = [p.strip() for p in tracked_str.split(",") if p.strip()]
@@ -86,11 +87,19 @@ async def register_ui(websocket):
             "player_avatars": avatar_settings.get("player_avatars", {}),
             "friends_library": avatar_settings.get("friends_library", {}),
             "avatar_size": avatar_settings.get("avatar_size", 48),
+            "text_size": avatar_settings.get("text_size", 14),
             "show_timestamp": avatar_settings.get("show_timestamp", True),
             "show_event_label": avatar_settings.get("show_event_label", True),
             "notif_color": avatar_settings.get("notif_color", "#171717"),
             "notif_layout": avatar_settings.get("notif_layout", "standard"),
-            "notif_padding": avatar_settings.get("notif_padding", 12)
+            "notif_padding": avatar_settings.get("notif_padding", 12),
+            "use_grid_popup_overlay": avatar_settings.get("use_grid_popup_overlay", False),
+            "use_grid_popup_obs": avatar_settings.get("use_grid_popup_obs", False),
+            "grid_max_people": avatar_settings.get("grid_max_people", 5),
+            "grid_layout_overlay": avatar_settings.get("grid_layout_overlay", "horizontal"),
+            "grid_layout_obs": avatar_settings.get("grid_layout_obs", "horizontal"),
+            "single_bubble_focus": avatar_settings.get("single_bubble_focus", True),
+            "show_locations": show_locs
         }))
 
         # Also send item list if we have it (Filtered for current game)
@@ -130,6 +139,7 @@ async def register_ui(websocket):
                         if "obs_duration" in data: settings["obs_duration"] = data["obs_duration"]
                         if "obs_fade" in data: settings["obs_fade"] = data["obs_fade"]
                         if "disable_hw_accel" in data: settings["disable_hw_accel"] = data["disable_hw_accel"]
+                        if "show_locations" in data: settings["show_locations"] = data["show_locations"]
                         
                         with open(settings_path, "w") as f:
                             json.dump(settings, f, indent=4)
@@ -140,7 +150,8 @@ async def register_ui(websocket):
                             "overlay_duration": settings.get("overlay_duration", 10),
                             "obs_duration": settings.get("obs_duration", 15),
                             "obs_fade": settings.get("obs_fade", False),
-                            "disable_hw_accel": settings.get("disable_hw_accel", False)
+                            "disable_hw_accel": settings.get("disable_hw_accel", False),
+                            "show_locations": settings.get("show_locations", True)
                         })
                     except Exception as e: print(f"Error updating settings: {e}")
                 elif data.get("type") == "update_avatar_data":
@@ -155,7 +166,10 @@ async def register_ui(websocket):
                         
                         # Update specific keys
                         keys = ["custom_mode_overlay", "custom_mode_obs", "player_avatars", "friends_library", 
-                                "avatar_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding"]
+                                "avatar_size", "text_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding",
+                                "use_grid_popup_overlay", "use_grid_popup_obs", "grid_max_people",
+                                "grid_layout_overlay", "grid_layout_obs",
+                                "single_bubble_focus"]
                         for k in keys:
                             if k in data: avatar_settings[k] = data[k]
                         

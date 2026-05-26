@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "overlay": "electron electron-main.cjs",
-    "build:electron": "tsc -b && vite build && electron-builder"
+    "build:electron": "tsc -b && vite build && electron-builder",
+    "pack:linux": "tsc -b && vite build && electron-builder --linux AppImage"
   },
   "build": {
     "appId": "com.broadcast.archipelago",

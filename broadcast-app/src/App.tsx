@@ -601,8 +601,9 @@ const App: React.FC = () => {
             }
 
             // Grid Popup Mode LRU Logic
-            if (newNotif.event === 'receive' || newNotif.event === 'send') {
-              const playerName = newNotif.from;
+            const isHint = newNotif.event === 'hint';
+            if (newNotif.event === 'receive' || newNotif.event === 'send' || isHint) {
+              const playerName = isHint ? newNotif.finder : newNotif.from;
               if (playerName) {
                 setGridPlayers(prev => {
                   const existingIdx = prev.findIndex(p => p.name === playerName);
@@ -1171,7 +1172,9 @@ const App: React.FC = () => {
                             <div className="flex justify-between items-center border-b border-white/5 pb-1 mb-1">
                               {showEventLabel && (
                                 <span className="font-bold uppercase tracking-wider text-neutral-400" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
-                                  {player.activeNotification.from === player.activeNotification.to ? 'Item Found' : 'Sent Item'}
+                                  {player.activeNotification.event === 'hint' 
+                                    ? 'Item Hint' 
+                                    : (player.activeNotification.from === player.activeNotification.to ? 'Item Found' : 'Sent Item')}
                                 </span>
                               )}
                               {showTimestamp && <span className="text-neutral-500" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>{player.activeNotification.timestamp}</span>}
@@ -1179,15 +1182,24 @@ const App: React.FC = () => {
                           )}
                           
                           {/* Message */}
-                          <p className="leading-tight font-medium text-white" style={{ fontSize: `${Math.max(10, textSize - 2)}px` }}>
-                            {player.activeNotification.from === player.activeNotification.to ? (
-                              <>Found <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span></>
+                          <div className="leading-tight font-medium text-white" style={{ fontSize: `${Math.max(10, textSize - 2)}px` }}>
+                            {player.activeNotification.event === 'hint' ? (
+                              <div className="space-y-1">
+                                <p>
+                                  <span className="text-accent-prog font-bold">{player.activeNotification.owner}</span>'s <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span>
+                                </p>
+                                <p className="text-neutral-400" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>
+                                  is at <span className="text-white font-medium">{player.activeNotification.location}</span>
+                                </p>
+                              </div>
+                            ) : player.activeNotification.from === player.activeNotification.to ? (
+                              <p>Found <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span></p>
                             ) : (
-                              <>Sent <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span> to <span className="text-accent-prog font-bold">{player.activeNotification.to}</span></>
+                              <p>Sent <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span> to <span className="text-accent-prog font-bold">{player.activeNotification.to}</span></p>
                             )}
-                          </p>
+                          </div>
                           
-                          {showLocations && player.activeNotification.location && (
+                          {player.activeNotification.event !== 'hint' && showLocations && player.activeNotification.location && (
                             <p className="text-neutral-400 italic mt-0.5" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
                               at <span className="text-neutral-200">{player.activeNotification.location}</span>
                             </p>

@@ -99,6 +99,8 @@ async def register_ui(websocket):
             "grid_layout_overlay": avatar_settings.get("grid_layout_overlay", "horizontal"),
             "grid_layout_obs": avatar_settings.get("grid_layout_obs", "horizontal"),
             "single_bubble_focus": avatar_settings.get("single_bubble_focus", True),
+            "overlay_position": avatar_settings.get("overlay_position", "bottom-left"),
+            "obs_position": avatar_settings.get("obs_position", "bottom-left"),
             "show_locations": show_locs
         }))
 
@@ -169,7 +171,7 @@ async def register_ui(websocket):
                                 "avatar_size", "text_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding",
                                 "use_grid_popup_overlay", "use_grid_popup_obs", "grid_max_people",
                                 "grid_layout_overlay", "grid_layout_obs",
-                                "single_bubble_focus"]
+                                "single_bubble_focus", "overlay_position", "obs_position"]
                         for k in keys:
                             if k in data: avatar_settings[k] = data[k]
                         
@@ -957,7 +959,7 @@ async def main():
         await register_ui(websocket)
 
     print(f"\n--- Bridge Starting ({args.mode} mode) ---", flush=True)
-    async with websockets.serve(bridge_handler, "localhost", args.port, max_size=None):
+    async with websockets.serve(bridge_handler, "127.0.0.1", args.port, max_size=None):
         await ap_client.connect()
 
 if __name__ == "__main__":

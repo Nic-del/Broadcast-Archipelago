@@ -426,7 +426,7 @@ class BroadcastLauncherApp:
                 import asyncio
                 import websockets
                 async def send():
-                    async with websockets.connect("ws://localhost:8089") as ws:
+                    async with websockets.connect("ws://127.0.0.1:8089") as ws:
                         await ws.send(json.dumps({"type": "clear_history"}))
                 asyncio.run(send())
             except: pass
@@ -442,7 +442,7 @@ class BroadcastLauncherApp:
                 import asyncio
                 import websockets
                 async def send():
-                    async with websockets.connect("ws://localhost:8089") as ws:
+                    async with websockets.connect("ws://127.0.0.1:8089") as ws:
                         await ws.send(json.dumps({"type": "test_fill"}))
                 asyncio.run(send())
             except: pass

@@ -172,11 +172,11 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('broadcast_grid_max_people');
     return saved ? parseInt(saved) : 5;
   });
-  const [gridLayoutOverlay, setGridLayoutOverlay] = useState<'horizontal' | 'vertical'>(() => {
+  const [gridLayoutOverlay, setGridLayoutOverlay] = useState<'horizontal' | 'vertical' | 'horizontal-bottom' | 'horizontal-top' | 'vertical-left' | 'vertical-right'>(() => {
     const saved = localStorage.getItem('broadcast_grid_layout_overlay');
     return (saved as any) || 'horizontal';
   });
-  const [gridLayoutOBS, setGridLayoutOBS] = useState<'horizontal' | 'vertical'>(() => {
+  const [gridLayoutOBS, setGridLayoutOBS] = useState<'horizontal' | 'vertical' | 'horizontal-bottom' | 'horizontal-top' | 'vertical-left' | 'vertical-right'>(() => {
     const saved = localStorage.getItem('broadcast_grid_layout_obs');
     return (saved as any) || 'horizontal';
   });
@@ -226,6 +226,15 @@ const App: React.FC = () => {
   const [notifPadding, setNotifPadding] = useState<number>(() => {
     const saved = localStorage.getItem('broadcast_notif_padding');
     return saved ? parseInt(saved) : 12;
+  });
+
+  const [overlayPosition, setOverlayPosition] = useState<string>(() => {
+    const saved = localStorage.getItem('broadcast_overlay_position');
+    return saved || 'bottom-left';
+  });
+  const [obsPosition, setObsPosition] = useState<string>(() => {
+    const saved = localStorage.getItem('broadcast_obs_position');
+    return saved || 'bottom-left';
   });
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -416,13 +425,22 @@ const App: React.FC = () => {
     localStorage.setItem('broadcast_notif_padding', notifPadding.toString());
   }, [notifPadding]);
 
+  useEffect(() => {
+    localStorage.setItem('broadcast_overlay_position', overlayPosition);
+  }, [overlayPosition]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_obs_position', obsPosition);
+  }, [obsPosition]);
+
   // Connect to Bridge
   useEffect(() => {
     let isMounted = true;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
-
     const connect = () => {
-      const socket = new WebSocket('ws://localhost:8089');
+      const hostname = window.location.hostname;
+      const wsHost = (hostname === 'localhost' || !hostname) ? '127.0.0.1' : hostname;
+      const socket = new WebSocket(`ws://${wsHost}:8089`);
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -473,6 +491,8 @@ const App: React.FC = () => {
             if (data.grid_layout_overlay !== undefined) setGridLayoutOverlay(data.grid_layout_overlay);
             if (data.grid_layout_obs !== undefined) setGridLayoutOBS(data.grid_layout_obs);
             if (data.single_bubble_focus !== undefined) setSingleBubbleFocus(data.single_bubble_focus);
+            if (data.overlay_position !== undefined) setOverlayPosition(data.overlay_position);
+            if (data.obs_position !== undefined) setObsPosition(data.obs_position);
             
             // Style Sync
             if (data.avatar_size !== undefined) setAvatarSize(data.avatar_size);
@@ -667,6 +687,8 @@ const App: React.FC = () => {
             if (data.grid_layout_overlay !== undefined) setGridLayoutOverlay(data.grid_layout_overlay);
             if (data.grid_layout_obs !== undefined) setGridLayoutOBS(data.grid_layout_obs);
             if (data.single_bubble_focus !== undefined) setSingleBubbleFocus(data.single_bubble_focus);
+            if (data.overlay_position !== undefined) setOverlayPosition(data.overlay_position);
+            if (data.obs_position !== undefined) setObsPosition(data.obs_position);
             
             if (data.avatar_size !== undefined) setAvatarSize(data.avatar_size);
             if (data.text_size !== undefined) setTextSize(data.text_size);
@@ -984,10 +1006,51 @@ const App: React.FC = () => {
   const useGridPopup = isStreamMode ? useGridPopupOBS : useGridPopupOverlay;
   const gridLayout = isStreamMode ? gridLayoutOBS : gridLayoutOverlay;
 
+  const isHorizontal = gridLayout === 'horizontal' || gridLayout === 'horizontal-bottom' || gridLayout === 'horizontal-top';
+  const isVertical = gridLayout === 'vertical' || gridLayout === 'vertical-right' || gridLayout === 'vertical-left';
+  const isTopHorizontal = gridLayout === 'horizontal-top';
+  const isLeftVertical = gridLayout === 'vertical-left';
+
+  const getNotificationListClasses = () => {
+    const pos = isStreamMode ? obsPosition : overlayPosition;
+    
+    if (isStreamMode) {
+      switch (pos) {
+        case 'top-left':
+          return 'absolute top-4 left-6 flex flex-col gap-3 items-start max-w-sm transition-all duration-300';
+        case 'top-right':
+          return 'absolute top-4 right-6 flex flex-col gap-3 items-end max-w-sm transition-all duration-300 text-right';
+        case 'bottom-right':
+          return 'absolute bottom-4 right-6 flex flex-col gap-3 items-end max-w-sm transition-all duration-300 text-right';
+        case 'bottom-left':
+        default:
+          return 'absolute bottom-4 left-6 flex flex-col gap-3 items-start max-w-sm transition-all duration-300';
+      }
+    }
+    
+    switch (pos) {
+      case 'top-left':
+        return 'absolute top-4 left-6 flex flex-col gap-3 items-start max-w-sm transition-all duration-300';
+      case 'top-right':
+        return 'absolute top-4 right-6 flex flex-col gap-3 items-end max-w-sm transition-all duration-300 text-right';
+      case 'bottom-right':
+        return cn(
+          'absolute bottom-4 flex flex-col gap-3 items-end max-w-sm transition-all duration-300 text-right',
+          isFlipped ? 'right-28 left-6' : 'right-6 left-28'
+        );
+      case 'bottom-left':
+      default:
+        return cn(
+          'absolute bottom-4 flex flex-col gap-3 items-start max-w-sm transition-all duration-300',
+          isFlipped ? 'left-6 right-28' : 'left-28 right-6'
+        );
+    }
+  };
+
   const { renderedAvatarSize, renderedGap } = useMemo(() => {
     const N = gridPlayers.length;
     
-    if (useGridPopup && gridLayout === 'vertical' && N > 0) {
+    if (useGridPopup && isVertical && N > 0) {
       const height = windowBounds.height || window.innerHeight;
       const padding = 48; // padding around the window edges
       const availableHeight = height - padding;
@@ -1015,7 +1078,7 @@ const App: React.FC = () => {
       renderedAvatarSize: avatarSize,
       renderedGap: 24
     };
-  }, [gridPlayers.length, avatarSize, useGridPopup, gridLayout, windowBounds.height]);
+  }, [gridPlayers.length, avatarSize, useGridPopup, isVertical, windowBounds.height]);
 
   const isFlipped = useMemo(() => {
     return (windowBounds.x < (displays[activeDisplayIndex]?.bounds.x || 0) + 40);
@@ -1032,12 +1095,18 @@ const App: React.FC = () => {
           /* Grid & Popup Mode */
           <div 
             className={cn(
-              gridLayout === 'horizontal' 
-                ? "absolute bottom-6 left-6 right-6 flex flex-row justify-center items-end gap-8 flex-wrap transition-all duration-300 pointer-events-none"
-                : "absolute top-6 bottom-6 right-6 flex flex-col justify-center items-end transition-all duration-300 pointer-events-none",
-              gridLayout === 'horizontal' && !isStreamMode ? (isFlipped ? "pr-24" : "pl-24") : "" // Offset slightly for desktop launcher button
+              isHorizontal 
+                ? cn(
+                    "absolute left-6 right-6 flex flex-row justify-center gap-8 flex-wrap transition-all duration-300 pointer-events-none",
+                    isTopHorizontal ? "top-6 items-start" : "bottom-6 items-end"
+                  )
+                : cn(
+                    "absolute top-6 bottom-6 flex flex-col justify-center transition-all duration-300 pointer-events-none",
+                    isLeftVertical ? "left-6 items-start" : "right-6 items-end"
+                  ),
+              isHorizontal && !isStreamMode ? (isFlipped ? "pr-24" : "pl-24") : "" // Offset slightly for desktop launcher button
             )}
-            style={gridLayout === 'vertical' ? { gap: `${renderedGap}px` } : undefined}
+            style={isVertical ? { gap: `${renderedGap}px` } : undefined}
           >
             <AnimatePresence>
               {gridPlayers.map((player) => (
@@ -1049,7 +1118,9 @@ const App: React.FC = () => {
                   exit={{ opacity: 0, scale: 0.8 }}
                   className={cn(
                     "flex relative group",
-                    gridLayout === 'horizontal' ? "flex-col items-center min-w-[100px]" : "flex-row justify-end items-center"
+                    isHorizontal 
+                      ? "flex-col items-center min-w-[100px]" 
+                      : (isLeftVertical ? "flex-row justify-start items-center" : "flex-row justify-end items-center")
                   )}
                 >
                   {/* Popup Bubble */}
@@ -1057,19 +1128,21 @@ const App: React.FC = () => {
                     {player.activeNotification && (
                       <motion.div
                         initial={
-                          gridLayout === 'horizontal' 
-                            ? { opacity: 0, scale: 0.8, y: 15 } 
-                            : { opacity: 0, scale: 0.8, x: -15 }
+                          isHorizontal 
+                            ? { opacity: 0, scale: 0.8, y: isTopHorizontal ? -15 : 15 } 
+                            : { opacity: 0, scale: 0.8, x: isLeftVertical ? 15 : -15 }
                         }
                         animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
                         exit={
-                          gridLayout === 'horizontal' 
-                            ? { opacity: 0, scale: 0.8, y: 15 } 
-                            : { opacity: 0, scale: 0.8, x: -15 }
+                          isHorizontal 
+                            ? { opacity: 0, scale: 0.8, y: isTopHorizontal ? -15 : 15 } 
+                            : { opacity: 0, scale: 0.8, x: isLeftVertical ? 15 : -15 }
                         }
                         className={cn(
                           "absolute p-3 rounded-2xl border backdrop-blur-xl shadow-2xl z-30 pointer-events-auto transition-all duration-300",
-                          gridLayout === 'horizontal' ? "bottom-[110%] mb-3 w-64" : "right-[110%] mr-3 w-64",
+                          isHorizontal 
+                            ? (isTopHorizontal ? "top-[110%] mt-3 w-64" : "bottom-[110%] mb-3 w-64") 
+                            : (isLeftVertical ? "left-[110%] ml-3 w-64" : "right-[110%] mr-3 w-64"),
                           getAccentColor(player.activeNotification.class)
                         )}
                         style={{
@@ -1081,9 +1154,9 @@ const App: React.FC = () => {
                         <div 
                           className={cn(
                             "absolute w-3 h-3 rotate-45 border",
-                            gridLayout === 'horizontal' 
-                              ? "-bottom-1.5 left-1/2 -translate-x-1/2 border-r border-b" 
-                              : "top-1/2 -translate-y-1/2 -right-1.5 border-t border-r"
+                            isHorizontal 
+                              ? (isTopHorizontal ? "-top-1.5 left-1/2 -translate-x-1/2 border-l border-t" : "-bottom-1.5 left-1/2 -translate-x-1/2 border-r border-b") 
+                              : (isLeftVertical ? "top-1/2 -translate-y-1/2 -left-1.5 border-b border-l" : "top-1/2 -translate-y-1/2 -right-1.5 border-t border-r")
                           )}
                           style={{
                             backgroundColor: `${notifColor}`,
@@ -1149,10 +1222,13 @@ const App: React.FC = () => {
                   {/* Player Name */}
                   <span className={cn(
                     "text-[10px] font-bold text-neutral-200 tracking-wide text-shadow bg-black/40 px-2.5 py-0.5 rounded-full border border-white/5 whitespace-nowrap transition-all duration-200",
-                    gridLayout === 'horizontal' 
+                    isHorizontal 
                       ? "mt-2" 
-                      : "absolute right-[115%] top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none",
-                    gridLayout === 'vertical' && player.activeNotification && "group-hover:opacity-0" // Hide name label on hover if speech bubble is active to prevent overlap
+                      : (isLeftVertical 
+                          ? "absolute left-[115%] top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none"
+                          : "absolute right-[115%] top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none"
+                        ),
+                    isVertical && player.activeNotification && "group-hover:opacity-0" // Hide name label on hover if speech bubble is active to prevent overlap
                   )}>
                     {player.name}
                   </span>
@@ -1162,29 +1238,29 @@ const App: React.FC = () => {
           </div>
         ) : (
           /* Notifications offset intelligently based on the button position */
-          <div className={cn(
-            "absolute bottom-4 flex flex-col gap-3 items-start max-w-sm transition-all duration-300",
-            !isStreamMode ? (isFlipped ? "right-28 left-6" : "left-28 right-6") : "left-6 right-6"
-          )}>
+          <div className={getNotificationListClasses()}>
             <AnimatePresence>
-              {notifications.map((notif) => (
-              <motion.div
-                key={notif.id}
-                initial={{ opacity: 0, x: -50, scale: 0.9 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -50, scale: 0.9 }}
-                className={cn(
-                  "w-full backdrop-blur-xl border rounded-xl flex shadow-2xl pointer-events-auto transition-all duration-300",
-                  notifLayout === 'vertical' ? "flex-col items-center text-center" : (notifLayout === 'reversed' ? "flex-row-reverse" : "flex-row items-center"),
-                  getAccentColor(notif.class),
-                  notif.event === 'error' && "border-red-500 shadow-red-500/20"
-                )}
-                style={{ 
-                  backgroundColor: `${notifColor}${Math.floor(bgOpacity * 2.55).toString(16).padStart(2, '0')}`,
-                  padding: `${notifPadding}px`,
-                  gap: `${notifPadding}px`
-                }} 
-              >
+              {notifications.map((notif) => {
+                const isRightSide = (isStreamMode ? obsPosition : overlayPosition).endsWith('right');
+                return (
+                <motion.div
+                  key={notif.id}
+                  initial={{ opacity: 0, x: isRightSide ? 50 : -50, scale: 0.9 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: isRightSide ? 50 : -50, scale: 0.9 }}
+                  className={cn(
+                    "w-full backdrop-blur-xl border rounded-xl flex shadow-2xl pointer-events-auto transition-all duration-300 relative",
+                    notifLayout === 'vertical' ? "flex-col items-center text-center" : (notifLayout === 'reversed' ? "flex-row-reverse" : "flex-row items-center"),
+                    getAccentColor(notif.class),
+                    notif.event === 'error' && "border-red-500 shadow-red-500/20",
+                    (notif.event === 'hint' && notif.finder?.toLowerCase() === currentPlayer?.toLowerCase()) && "border-[#c36e7a]/80 shadow-[#c36e7a]/30 ring-1 ring-[#c36e7a]/30"
+                  )}
+                  style={{ 
+                    backgroundColor: `${notifColor}${Math.floor(bgOpacity * 2.55).toString(16).padStart(2, '0')}`,
+                    padding: `${notifPadding}px`,
+                    gap: `${notifPadding}px`
+                  }} 
+                >
                 {((isStreamMode ? isCustomModeOBS : isCustomModeOverlay) && (notif.event === 'receive' || notif.event === 'send')) ? (
                   <div className="flex items-center gap-1 shrink-0">
                     {notif.from === notif.to ? (
@@ -1242,11 +1318,20 @@ const App: React.FC = () => {
                   </div>
                 ) : (
                   <div 
-                    className="bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0"
+                    className={cn(
+                      "bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0",
+                      (notif.event === 'hint' && notif.finder?.toLowerCase() === currentPlayer?.toLowerCase()) && "bg-[#c36e7a]/10 border-[#c36e7a]/20"
+                    )}
                     style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
                   >
                     {notif.event === 'error' ? (
                       <AlertCircle style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-red-500" />
+                    ) : notif.event === 'hint' ? (
+                      notif.finder?.toLowerCase() === currentPlayer?.toLowerCase() ? (
+                        <MapPin style={{ width: `${avatarSize * 0.45}px`, height: `${avatarSize * 0.45}px` }} className="text-[#c36e7a] animate-bounce" />
+                      ) : (
+                        <Info style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-sky-400" />
+                      )
                     ) : (
                       <Info style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-blue-400" />
                     )}
@@ -1261,9 +1346,11 @@ const App: React.FC = () => {
                     )}>
                       {showEventLabel && (
                         <span className="font-bold uppercase tracking-widest text-neutral-500" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>
-                          {(notif.event === 'receive' || notif.event === 'send') 
-                            ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
-                            : 'System Message'}
+                          {notif.event === 'hint' 
+                            ? 'Item Hint'
+                            : ((notif.event === 'receive' || notif.event === 'send') 
+                              ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
+                              : 'System Message')}
                         </span>
                       )}
                       {showTimestamp && <span className="text-neutral-600" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>{notif.timestamp}</span>}
@@ -1304,7 +1391,8 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </AnimatePresence>
         </div>
       )}
@@ -1972,6 +2060,39 @@ const App: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* Overlay Notification Position Select */}
+                        {isCustomModeOverlay && !useGridPopupOverlay && (
+                          <div className="space-y-1.5 animate-in fade-in duration-200">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Overlay Placement</span>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {([
+                                { key: 'top-left', label: 'Top Left' },
+                                { key: 'top-right', label: 'Top Right' },
+                                { key: 'bottom-left', label: 'Bottom Left' },
+                                { key: 'bottom-right', label: 'Bottom Right' }
+                              ] as const).map(pos => (
+                                <button
+                                  key={`overlay-pos-${pos.key}`}
+                                  onClick={() => {
+                                    setOverlayPosition(pos.key);
+                                    if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                      socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', overlay_position: pos.key }));
+                                    }
+                                  }}
+                                  className={cn(
+                                    "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                    overlayPosition === pos.key 
+                                      ? "bg-indigo-500/20 border-indigo-500 text-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]" 
+                                      : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                  )}
+                                >
+                                  {pos.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* OBS / Stream Mode Selection */}
                         <div className="space-y-2.5 pt-4 border-t border-white/5">
                           <div className="flex flex-col">
@@ -2015,6 +2136,39 @@ const App: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* OBS Notification Position Select */}
+                        {isCustomModeOBS && !useGridPopupOBS && (
+                          <div className="space-y-1.5 animate-in fade-in duration-200">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">OBS Overlay Placement</span>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {([
+                                { key: 'top-left', label: 'Top Left' },
+                                { key: 'top-right', label: 'Top Right' },
+                                { key: 'bottom-left', label: 'Bottom Left' },
+                                { key: 'bottom-right', label: 'Bottom Right' }
+                              ] as const).map(pos => (
+                                <button
+                                  key={`obs-pos-${pos.key}`}
+                                  onClick={() => {
+                                    setObsPosition(pos.key);
+                                    if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                      socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', obs_position: pos.key }));
+                                    }
+                                  }}
+                                  className={cn(
+                                    "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                    obsPosition === pos.key 
+                                      ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.2)]" 
+                                      : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                  )}
+                                >
+                                  {pos.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Grid max capacity slider and Reset button */}
                         {(useGridPopupOverlay || useGridPopupOBS) && (
                           <div className="space-y-4 pt-3 border-t border-white/5 animate-in fade-in duration-200">
@@ -2024,38 +2178,35 @@ const App: React.FC = () => {
                               <div className="space-y-2">
                                 <div className="text-[10px] font-bold uppercase tracking-wider text-pink-400">Overlay Grid Layout</div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setGridLayoutOverlay('horizontal');
-                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
-                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_overlay: 'horizontal' }));
-                                      }
-                                    }}
-                                    className={cn(
-                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
-                                      gridLayoutOverlay === 'horizontal'
-                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
-                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
-                                    )}
-                                  >
-                                    Horizontal (Bottom)
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setGridLayoutOverlay('vertical');
-                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
-                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_overlay: 'vertical' }));
-                                      }
-                                    }}
-                                    className={cn(
-                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
-                                      gridLayoutOverlay === 'vertical'
-                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
-                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
-                                    )}
-                                  >
-                                    Vertical (Right)
-                                  </button>
+                                  {([
+                                    { key: 'horizontal-bottom', label: 'Horizontal (Bottom)' },
+                                    { key: 'horizontal-top', label: 'Horizontal (Top)' },
+                                    { key: 'vertical-left', label: 'Vertical (Left)' },
+                                    { key: 'vertical-right', label: 'Vertical (Right)' }
+                                  ] as const).map(layout => {
+                                    const isActive = gridLayoutOverlay === layout.key || 
+                                      (layout.key === 'horizontal-bottom' && gridLayoutOverlay === 'horizontal') ||
+                                      (layout.key === 'vertical-right' && gridLayoutOverlay === 'vertical');
+                                    return (
+                                      <button
+                                        key={`grid-overlay-layout-${layout.key}`}
+                                        onClick={() => {
+                                          setGridLayoutOverlay(layout.key);
+                                          if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                            socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_overlay: layout.key }));
+                                          }
+                                        }}
+                                        className={cn(
+                                          "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                          isActive
+                                            ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
+                                            : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                        )}
+                                      >
+                                        {layout.label}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -2065,38 +2216,35 @@ const App: React.FC = () => {
                               <div className="space-y-2 pt-2 border-t border-white/5">
                                 <div className="text-[10px] font-bold uppercase tracking-wider text-pink-400">OBS Grid Layout</div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setGridLayoutOBS('horizontal');
-                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
-                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_obs: 'horizontal' }));
-                                      }
-                                    }}
-                                    className={cn(
-                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
-                                      gridLayoutOBS === 'horizontal'
-                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
-                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
-                                    )}
-                                  >
-                                    Horizontal (Bottom)
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setGridLayoutOBS('vertical');
-                                      if (socketRef.current?.readyState === WebSocket.OPEN) {
-                                        socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_obs: 'vertical' }));
-                                      }
-                                    }}
-                                    className={cn(
-                                      "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
-                                      gridLayoutOBS === 'vertical'
-                                        ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
-                                        : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
-                                    )}
-                                  >
-                                    Vertical (Right)
-                                  </button>
+                                  {([
+                                    { key: 'horizontal-bottom', label: 'Horizontal (Bottom)' },
+                                    { key: 'horizontal-top', label: 'Horizontal (Top)' },
+                                    { key: 'vertical-left', label: 'Vertical (Left)' },
+                                    { key: 'vertical-right', label: 'Vertical (Right)' }
+                                  ] as const).map(layout => {
+                                    const isActive = gridLayoutOBS === layout.key || 
+                                      (layout.key === 'horizontal-bottom' && gridLayoutOBS === 'horizontal') ||
+                                      (layout.key === 'vertical-right' && gridLayoutOBS === 'vertical');
+                                    return (
+                                      <button
+                                        key={`grid-obs-layout-${layout.key}`}
+                                        onClick={() => {
+                                          setGridLayoutOBS(layout.key);
+                                          if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                            socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', grid_layout_obs: layout.key }));
+                                          }
+                                        }}
+                                        className={cn(
+                                          "text-[9px] py-1.5 rounded border uppercase font-bold transition-all",
+                                          isActive
+                                            ? "bg-pink-500/20 border-pink-500 text-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.2)]"
+                                            : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
+                                        )}
+                                      >
+                                        {layout.label}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}

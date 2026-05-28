@@ -109,18 +109,26 @@ def main():
     procs = []
     
     try:
-        # 0. Start Dev Server if needed (Vite)
-        # Vite is needed if either Overlay is enabled (for dev mode) or OBS Web Server is enabled
+        # 0. Start Web Server if needed (OBS / Overlay dev)
         dist_path = os.path.join(SCRIPT_DIR, "broadcast-app", "dist")
-        needs_vite = settings.get("enable_obs") or (settings.get("enable_overlay") and not os.path.exists(dist_path))
+        packaged_exe = os.path.join(SCRIPT_DIR, "broadcast-app", "dist-packaged", "win-unpacked", "Broadcast-Overlay.exe")
+        has_packaged = os.path.exists(packaged_exe)
+        has_build = os.path.exists(dist_path) and os.path.exists(os.path.join(dist_path, "index.html"))
         
-        if needs_vite:
-            print("\n[0/3] Starting Vite Dev Server (for OBS/Background) on port 5173...")
-            # We use shell=True for npx on Windows
+        if settings.get("enable_obs"):
+            if has_build:
+                print("\n[0/3] Starting lightweight Python Web Server (for OBS) on port 5173...")
+                cmd = [sys.executable, "-m", "http.server", "5173", "--directory", dist_path]
+                procs.append(subprocess.Popen(cmd))
+            else:
+                print("\n[0/3] Starting Vite Dev Server (for OBS) on port 5173...")
+                procs.append(subprocess.Popen(["cmd", "/c", "npx vite --no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+        elif settings.get("enable_overlay") and not has_packaged and not has_build:
+            print("\n[0/3] Starting Vite Dev Server (for Overlay Dev) on port 5173...")
             procs.append(subprocess.Popen(["cmd", "/c", "npx vite --no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
 
-        # 1. Check/Build Frontend if Overlay is enabled
-        if settings.get("enable_overlay"):
+        # 1. Check/Build Frontend if Overlay is enabled and not packaged
+        if settings.get("enable_overlay") and not has_packaged:
             print("[1/3] Checking Frontend Build...")
             if not os.path.exists(dist_path) or not os.path.exists(os.path.join(dist_path, "index.html")):
                 print("      Building Frontend for the first time... (This may take a minute)")
@@ -156,8 +164,12 @@ def main():
             sys.stdout.flush()
             time.sleep(1) # Wait a bit for bridge
             
-            print("\r[3/3] Starting Electron Overlay UI...        ")
-            procs.append(subprocess.Popen(["cmd", "/c", "npm run overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+            if has_packaged:
+                print("\r[3/3] Starting Electron Standalone Overlay UI...        ")
+                procs.append(subprocess.Popen([packaged_exe]))
+            else:
+                print("\r[3/3] Starting Electron Overlay UI...        ")
+                procs.append(subprocess.Popen(["cmd", "/c", "npm run overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
         else:
             print("[3/3] Electron Overlay disabled in settings. Skipping.")
         

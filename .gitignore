@@ -7,3 +7,7 @@ broadcast_settings.json
 .DS_Store
 broadcast/slot_cache.json
 broadcast_avatars.json
+dist-release/
+BroadCast-Archipelago.zip
+dist-packaged/
+broadcast-app/dist-packaged/

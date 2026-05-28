@@ -3,12 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron-main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:ui": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "overlay": "electron electron-main.cjs"
+    "overlay": "electron electron-main.cjs",
+    "dist": "electron-builder --win",
+    "build:full": "npm run build:ui && npm run dist"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
@@ -27,6 +31,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.27",
     "electron": "^41.0.5",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
@@ -38,8 +43,29 @@
     "vite": "^6.4.2"
   },
   "overrides": {
-    "brace-expansion": "1.1.13",
     "flatted": "3.4.2",
     "picomatch": "4.0.4"
+  },
+  "build": {
+    "appId": "com.broadcast.app",
+    "productName": "Broadcast-Overlay",
+    "directories": {
+      "output": "dist-packaged"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "preload.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "dir"
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName} Portable.${ext}"
+    }
   }
 }

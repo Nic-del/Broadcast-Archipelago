@@ -2,6 +2,37 @@ const { app, BrowserWindow, screen, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+function getSettingsPath() {
+  const searchDirs = [
+    __dirname,
+    path.dirname(process.execPath),
+    process.cwd()
+  ];
+  
+  for (const baseDir of searchDirs) {
+    let currentDir = baseDir;
+    for (let i = 0; i < 5; i++) {
+      const checkPath = path.join(currentDir, 'broadcast_settings.json');
+      if (fs.existsSync(checkPath)) {
+        return checkPath;
+      }
+      const parent = path.dirname(currentDir);
+      if (parent === currentDir) break;
+      currentDir = parent;
+    }
+  }
+  
+  return app.isPackaged
+    ? path.join(path.dirname(process.execPath), 'broadcast_settings.json')
+    : path.join(__dirname, '..', 'broadcast_settings.json');
+}
+
+function getUserDataPath() {
+  const settingsPath = getSettingsPath();
+  const baseDir = path.dirname(settingsPath);
+  return path.join(baseDir, '.electron_data');
+}
+
 // OPTIMIZATION: Limit FPS and resource usage to save performance for the game
 app.commandLine.appendSwitch('limit-fps', '30'); // Limit overlay logic/render to 30fps
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache'); // FIX: Prevent GPU cache "Access Denied" errors
@@ -11,7 +42,7 @@ app.commandLine.appendSwitch('disable-http-cache'); // FIX: Prevent general disk
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 function loadSettingsSync() {
-  const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  const settingsPath = getSettingsPath();
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf8');
@@ -30,12 +61,12 @@ if (initialSettings && initialSettings.disable_hw_accel) {
 }
 
 // FIX: Set a custom user data path in the project folder to avoid conflicts with other Electron apps
-const userDataPath = path.join(__dirname, '..', '.electron_data');
+const userDataPath = getUserDataPath();
 if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath, { recursive: true });
 app.setPath('userData', userDataPath);
 
 function loadSettings() {
-  const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  const settingsPath = getSettingsPath();
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf8');
@@ -47,7 +78,7 @@ function loadSettings() {
   return null;
 }
 function saveSettings(settings) {
-  const settingsPath = path.join(__dirname, '..', 'broadcast_settings.json');
+  const settingsPath = getSettingsPath();
   try {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4), 'utf8');
   } catch (e) {

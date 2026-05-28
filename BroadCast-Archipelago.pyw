@@ -269,9 +269,10 @@ class BroadcastLauncherApp:
         msg += "2. Ensure Node.js (v20+) and Python (3.12) are installed.\n"
         msg += "3. Don't move the app files out of their folders.\n"
         msg += "4. Check if an antivirus is blocking 'electron.exe'.\n"
-        msg += "5. If port 8089 is used by another app, the bridge will crash.\n"
-        msg += "6. SSL Error? If using a local server, ensure you use 'localhost:port'.\n"
-        msg += "7. If using archipelago.gg, the address should be 'archipelago.gg:PORT'."
+        msg += "5. 'Electron failed to install correctly'? Delete 'broadcast-app/node_modules' and run 'INSTALLATION.bat' again. Or run CMD in 'broadcast-app' and type:\n   node node_modules/electron/install.js\n"
+        msg += "6. If port 8089 is used by another app, the bridge will crash.\n"
+        msg += "7. SSL Error? If using a local server, ensure you use 'localhost:port'.\n"
+        msg += "8. If using archipelago.gg, the address should be 'archipelago.gg:PORT'."
         messagebox.showinfo("Diagnostic Tool", msg)
 
     def on_monitor_change(self, event=None):
@@ -475,13 +476,15 @@ class BroadcastLauncherApp:
         self.status_label.config(text="Status: Cleaning up...", fg="#ffaa00")
         self.root.update()
         
-        # Force delete dist folder to ensure we use latest dev code
+        # Force delete dist folder to ensure we use latest dev code (Only in Dev environment)
         try:
             import shutil
             dist_to_clean = os.path.join(APP_DIR, "broadcast-app", "dist")
-            if os.path.exists(dist_to_clean):
+            src_dir = os.path.join(APP_DIR, "broadcast-app", "src")
+            if os.path.exists(src_dir) and os.path.exists(dist_to_clean):
                 shutil.rmtree(dist_to_clean)
         except: pass
+
 
         import time
         time.sleep(1) 
@@ -523,12 +526,20 @@ class BroadcastLauncherApp:
             # 0x08000000 is CREATE_NO_WINDOW on Windows
             return subprocess.Popen(cmd, cwd=cwd, stdout=f, stderr=f, shell=True if isinstance(cmd, str) else False, creationflags=0x08000000, env=env)
 
-        # Start Dev Server only if needed
-        # Needed if: OBS is enabled OR (Overlay is enabled AND no production build exists)
-        dist_path = os.path.join("broadcast-app", "dist")
+        # Start Web Server only if needed
+        dist_path = os.path.join(APP_DIR, "broadcast-app", "dist")
         has_build = os.path.exists(dist_path) and os.path.exists(os.path.join(dist_path, "index.html"))
         
-        if self.use_obs.get() or (self.use_overlay.get() and not has_build):
+        if self.use_obs.get():
+            if has_build:
+                # Use lightweight Python built-in HTTP server to serve static compiled frontend on port 5173
+                cmd = py_cmd.split() + ["-m", "http.server", "5173", "--directory", dist_path]
+                self.procs.append(spawn_with_log(cmd, "webserver"))
+            else:
+                # Fall back to Vite dev server if dist is missing
+                self.procs.append(spawn_with_log(["cmd", "/c", "npx vite --no-open"], "vite", cwd="broadcast-app"))
+        elif self.use_overlay.get() and not has_build:
+            # Needed for dev mode overlay without pre-built dist
             self.procs.append(spawn_with_log(["cmd", "/c", "npx vite --no-open"], "vite", cwd="broadcast-app"))
         
         # Determine bridge mode: If EITHER is 'all' or 'filtered', bridge must be 'all' to get the data
@@ -564,8 +575,29 @@ class BroadcastLauncherApp:
         
         # Launch Electron Overlay ONLY if enabled
         if self.use_overlay.get():
-            self.procs.append(spawn_with_log(["cmd", "/c", "npm run overlay"], "overlay", cwd="broadcast-app"))
-            self.status_label.config(text="Status: Overlay & Bridge Operational", fg="#55ff55")
+            # First, check if there is a pre-packaged standalone production version of the overlay
+            packaged_exe = os.path.join(APP_DIR, "broadcast-app", "dist-packaged", "win-unpacked", "Broadcast-Overlay.exe")
+            if os.path.exists(packaged_exe):
+                self.procs.append(spawn_with_log([packaged_exe], "overlay"))
+                self.status_label.config(text="Status: Overlay (Standalone) & Bridge Operational", fg="#55ff55")
+            else:
+                # Fall back to development node_modules environment
+                electron_exe = os.path.join(APP_DIR, "broadcast-app", "node_modules", "electron", "dist", "electron.exe")
+                if not os.path.exists(electron_exe):
+                    messagebox.showerror(
+                        "Electron Missing / Error",
+                        "Electron binary is missing or was not installed correctly!\n\n"
+                        "This usually happens due to connection issues or antivirus block during setup.\n\n"
+                        "To fix this:\n"
+                        "1. Close this app.\n"
+                        "2. Run 'INSTALL_NODE_ONLY.bat' to trigger automatic repair.\n"
+                        "3. If that doesn't work, open CMD in 'broadcast-app' and run:\n"
+                        "   node node_modules/electron/install.js"
+                    )
+                    self.stop_system()
+                    return
+                self.procs.append(spawn_with_log(["cmd", "/c", "npm run overlay"], "overlay", cwd="broadcast-app"))
+                self.status_label.config(text="Status: Overlay & Bridge Operational", fg="#55ff55")
         else:
             self.status_label.config(text="Status: Web Server & Bridge Operational", fg="#55ff55")
         

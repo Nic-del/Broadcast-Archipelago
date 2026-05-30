@@ -318,9 +318,23 @@ async def register_ui(websocket):
                         await c.ws.send(json.dumps([{"cmd": "Get", "keys": keys}]))
                 elif data.get("type") == "request_hint":
                     item = data.get("item")
+                    item_type = data.get("item_type", "Item")
                     if item and hasattr(websocket, 'ap_client') and websocket.ap_client.ws:
-                        print(f"Requesting hint for: {item}")
-                        await websocket.ap_client.ws.send(json.dumps([{"cmd": "Say", "text": f"!hint {item}"}]))
+                        client = websocket.ap_client
+                        is_location = (item_type == "Location")
+                        
+                        # Fallback detection if the UI is cached/not rebuilt
+                        if not is_location and hasattr(client, 'location_maps'):
+                            for loc_map in client.location_maps.values():
+                                matched_name = next((name for name in loc_map.values() if name.lower() == item.lower()), None)
+                                if matched_name:
+                                    is_location = True
+                                    item = matched_name
+                                    break
+                                    
+                        cmd = "!hint_location" if is_location else "!hint"
+                        print(f"Requesting hint ({'Location' if is_location else 'Item'}) for: {item}")
+                        await client.ws.send(json.dumps([{"cmd": "Say", "text": f"{cmd} {item}"}]))
             except: pass
     except: pass
     finally: UI_CLIENTS.remove(websocket)

@@ -830,10 +830,15 @@ const App: React.FC = () => {
   };
 
   const requestHint = () => {
-    if (hintInput.trim() && socketRef.current?.readyState === WebSocket.OPEN) {
+    const trimmed = hintInput.trim();
+    if (trimmed && socketRef.current?.readyState === WebSocket.OPEN) {
+      const isLocation = locationList.some(loc => loc.toLowerCase() === trimmed.toLowerCase());
+      const itemType = isLocation ? 'Location' : 'Item';
+      
       socketRef.current.send(JSON.stringify({ 
         type: 'request_hint', 
-        item: hintInput.trim() 
+        item: trimmed,
+        item_type: itemType
       }));
       setHintInput('');
     }
@@ -1717,7 +1722,6 @@ const App: React.FC = () => {
                                   ]
                                     .filter(obj => obj.name.toLowerCase().includes(hintInput.toLowerCase()))
                                     .sort((a, b) => {
-                                      // Prioritize items over locations
                                       if (a.type === 'Item' && b.type !== 'Item') return -1;
                                       if (a.type !== 'Item' && b.type === 'Item') return 1;
                                       return a.name.localeCompare(b.name);

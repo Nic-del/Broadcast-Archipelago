@@ -42,4 +42,5 @@ echo "==========================================="
 echo "ALL INSTALLATIONS COMPLETED!"
 echo "==========================================="
 echo "You can now launch the app with: python3 BroadCast-Archipelago.py"
-chmod +x ../BroadCast-Archipelago.py
+chmod +x BroadCast-Archipelago.py
+

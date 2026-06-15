@@ -17,6 +17,9 @@ import {
   Trash2,
   Upload,
   X,
+  Play,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -237,6 +240,263 @@ const App: React.FC = () => {
     return saved || 'bottom-left';
   });
 
+  // Sound settings state
+  const [soundSettings, setSoundSettings] = useState<{
+    enabled: boolean;
+    volume: number;
+    categories: Record<string, { enabled: boolean; mode: 'synth' | 'custom'; volume: number }>;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('broadcast_sound_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const categories = parsed.categories || {};
+        const updatedCategories: Record<string, { enabled: boolean; mode: 'synth' | 'custom'; volume: number }> = {};
+        const defaultCats = {
+          progression: { enabled: true, mode: 'synth', volume: 100 },
+          useful: { enabled: true, mode: 'synth', volume: 80 },
+          junk: { enabled: false, mode: 'synth', volume: 50 },
+          trap: { enabled: true, mode: 'synth', volume: 100 },
+          hint: { enabled: true, mode: 'synth', volume: 80 },
+          other: { enabled: true, mode: 'synth', volume: 70 }
+        };
+        for (const [key, val] of Object.entries(defaultCats)) {
+          updatedCategories[key] = {
+            enabled: categories[key]?.enabled !== undefined ? categories[key].enabled : val.enabled,
+            mode: categories[key]?.mode !== undefined ? categories[key].mode : val.mode,
+            volume: categories[key]?.volume !== undefined ? categories[key].volume : val.volume
+          };
+        }
+        return {
+          enabled: parsed.enabled !== undefined ? parsed.enabled : true,
+          volume: parsed.volume !== undefined ? parsed.volume : 50,
+          categories: updatedCategories
+        };
+      }
+    } catch {}
+    return {
+      enabled: true,
+      volume: 50,
+      categories: {
+        progression: { enabled: true, mode: 'synth', volume: 100 },
+        useful: { enabled: true, mode: 'synth', volume: 80 },
+        junk: { enabled: false, mode: 'synth', volume: 50 },
+        trap: { enabled: true, mode: 'synth', volume: 100 },
+        hint: { enabled: true, mode: 'synth', volume: 80 },
+        other: { enabled: true, mode: 'synth', volume: 70 }
+      }
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_sound_settings', JSON.stringify(soundSettings));
+  }, [soundSettings]);
+
+  // Audio Synthesizer via Web Audio API
+  const playSynthesizedSound = (type: string, volume: number) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime((volume / 100) * 0.75, ctx.currentTime);
+      masterGain.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+
+      if (type === 'progression') {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(0, now + idx * 0.08);
+          gain.gain.linearRampToValueAtTime(0.4, now + idx * 0.08 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 0.3);
+          osc.connect(gain);
+          gain.connect(masterGain);
+          osc.start(now + idx * 0.08);
+          osc.stop(now + idx * 0.08 + 0.35);
+        });
+      } else if (type === 'useful') {
+        const notes = [880.00, 1109.73];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(0, now + idx * 0.08);
+          gain.gain.linearRampToValueAtTime(0.3, now + idx * 0.08 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 0.15);
+          osc.connect(gain);
+          gain.connect(masterGain);
+          osc.start(now + idx * 0.08);
+          osc.stop(now + idx * 0.08 + 0.2);
+        });
+      } else if (type === 'junk') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.06);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      } else if (type === 'trap') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.4);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.linearRampToValueAtTime(0.2, now + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.45);
+      } else if (type === 'hint') {
+        const freqs = [392.00, 493.88, 587.33];
+        freqs.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+          gain.gain.setValueAtTime(0, now + idx * 0.04);
+          gain.gain.linearRampToValueAtTime(0.25, now + idx * 0.04 + 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.04 + 0.6);
+          osc.connect(gain);
+          gain.connect(masterGain);
+          osc.start(now + idx * 0.04);
+          osc.stop(now + idx * 0.04 + 0.7);
+        });
+      } else {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.05);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      }
+    } catch (e) {
+      console.error("Synthesizer playback failed:", e);
+    }
+  };
+
+  const playCustomSound = (category: string, volume: number) => {
+    try {
+      const savedSound = localStorage.getItem(`broadcast_custom_sound_${category}`);
+      if (!savedSound) return;
+      const audio = new Audio(savedSound);
+      audio.volume = Math.max(0, Math.min(1, volume / 100));
+      audio.play().catch(err => console.error("Custom audio play failed:", err));
+    } catch (err) {
+      console.error("Custom audio load failed:", err);
+    }
+  };
+
+  const playNotificationSound = (category: string) => {
+    if (!soundSettings.enabled) return;
+    const catSettings = soundSettings.categories[category];
+    if (!catSettings || !catSettings.enabled) return;
+
+    const catVol = catSettings.volume !== undefined ? catSettings.volume : 100;
+    const finalVolume = (soundSettings.volume / 100) * catVol;
+
+    if (catSettings.mode === 'custom') {
+      const savedSound = localStorage.getItem(`broadcast_custom_sound_${category}`);
+      if (savedSound) {
+        playCustomSound(category, finalVolume);
+      } else {
+        playSynthesizedSound(category, finalVolume);
+      }
+    } else {
+      playSynthesizedSound(category, finalVolume);
+    }
+  };
+
+  const playSoundForNotification = (event: string, itemClass?: number) => {
+    if (event === 'hint') {
+      playNotificationSound('hint');
+    } else if (event === 'receive' || event === 'send') {
+      if (itemClass === 0) {
+        playNotificationSound('progression');
+      } else if (itemClass === 1) {
+        playNotificationSound('useful');
+      } else if (itemClass === 2) {
+        playNotificationSound('junk');
+      } else if (itemClass === 3) {
+        playNotificationSound('trap');
+      } else {
+        playNotificationSound('other');
+      }
+    }
+  };
+
+  const handleCustomSoundUpload = (category: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024) {
+      alert("File is too large! Maximum size allowed is 500KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        try {
+          localStorage.setItem(`broadcast_custom_sound_${category}`, result);
+          const catSettings = soundSettings.categories[category];
+          const catVol = catSettings?.volume !== undefined ? catSettings.volume : 100;
+          const finalVolume = (soundSettings.volume / 100) * catVol;
+          const audio = new Audio(result);
+          audio.volume = Math.max(0, Math.min(1, finalVolume / 100));
+          audio.play().catch(e => console.error(e));
+        } catch (error) {
+          alert("Failed to save custom sound. LocalStorage might be full.");
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCategorySoundToggle = (category: string) => {
+    setSoundSettings(prev => ({
+      ...prev,
+      categories: {
+        ...prev.categories,
+        [category]: {
+          ...prev.categories[category],
+          enabled: !prev.categories[category].enabled
+        }
+      }
+    }));
+  };
+
+  const handleCategorySoundModeChange = (category: string, mode: 'synth' | 'custom') => {
+    setSoundSettings(prev => ({
+      ...prev,
+      categories: {
+        ...prev.categories,
+        [category]: {
+          ...prev.categories[category],
+          mode
+        }
+      }
+    }));
+  };
+
   const socketRef = useRef<WebSocket | null>(null);
 
   // Fetch initial data from Electron
@@ -287,6 +547,7 @@ const App: React.FC = () => {
   }, [windowBounds, displays]);
 
   const [activeTab, setActiveTab] = useState<'display' | 'settings' | 'hints' | 'room' | 'custom'>('display');
+
   const [overlayMode, setOverlayMode] = useState<string>('all');
   const [obsMode, setObsMode] = useState<string>('all');
   const [currentSyncMode, setCurrentSyncMode] = useState<string>(syncMode);
@@ -569,14 +830,17 @@ const App: React.FC = () => {
             if (data.event === 'hint') {
               if (!showHints) return;
             }
-            
+
             const newNotif: GameNotification = {
               ...data,
               id: Math.random().toString(36).substr(2, 9),
               timestamp: new Date().toLocaleTimeString(),
               createdAt: Date.now()
             } as any;
-            
+
+            // Trigger sound effects
+            playSoundForNotification(data.event, data.class);
+
             setNotifications(prev => {
               const updated = [...prev, newNotif];
               if (isStreamMode) return updated.slice(-15);
@@ -1631,6 +1895,159 @@ const App: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
+                    {/* Sound Settings Section */}
+                    <div className="space-y-4 bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400">Sound Effects</span>
+                          <span className="text-[8px] text-neutral-500 lowercase italic">Configurable audio cues for notifications</span>
+                        </div>
+                        <button 
+                          onClick={() => setSoundSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
+                          className={cn(
+                            "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                            soundSettings.enabled ? "bg-accent-prog" : "bg-neutral-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                            soundSettings.enabled ? "left-4.5" : "left-0.5"
+                          )} />
+                        </button>
+                      </div>
+
+                      {soundSettings.enabled && (
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                          {/* Volume control */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-neutral-400">
+                              <span className="flex items-center gap-1">
+                                {soundSettings.volume > 0 ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+                                Volume
+                              </span>
+                              <span>{soundSettings.volume}%</span>
+                            </div>
+                            <input 
+                              type="range" min="0" max="100" value={soundSettings.volume} 
+                              onChange={(e) => setSoundSettings(prev => ({ ...prev, volume: parseInt(e.target.value) }))}
+                              className="w-full accent-accent-prog h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Sound Categories */}
+                          <div className="space-y-3 pt-2 border-t border-white/5">
+                            {([
+                              { key: 'progression', label: 'Progression Items', color: 'text-accent-prog' },
+                              { key: 'useful', label: 'Useful Items', color: 'text-accent-useful' },
+                              { key: 'junk', label: 'Junk Items', color: 'text-accent-junk' },
+                              { key: 'trap', label: 'Trap Items', color: 'text-accent-trap' },
+                              { key: 'hint', label: 'Item Hints', color: 'text-sky-400' },
+                              { key: 'other', label: 'Sent / Other', color: 'text-neutral-300' }
+                            ] as const).map(cat => {
+                              const config = soundSettings.categories[cat.key] || { enabled: true, mode: 'synth' };
+                              return (
+                                <div key={cat.key} className="flex flex-col gap-2 p-2 bg-black/25 rounded-lg border border-white/5">
+                                  <div className="flex justify-between items-center">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={config.enabled}
+                                        onChange={() => handleCategorySoundToggle(cat.key)}
+                                        className="w-3 h-3 rounded bg-black/40 border border-white/10 accent-accent-prog"
+                                      />
+                                      <span className={cn("text-[10px] font-bold group-hover:text-white transition-colors", cat.color)}>
+                                        {cat.label}
+                                      </span>
+                                    </label>
+                                                                        {config.enabled && (
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={config.mode}
+                                          onChange={(e) => handleCategorySoundModeChange(cat.key, e.target.value as any)}
+                                          className="bg-neutral-900 border border-white/10 rounded px-1.5 py-0.5 text-[9px] text-neutral-300 focus:outline-none"
+                                        >
+                                          <option value="synth">Synth</option>
+                                          <option value="custom">Custom</option>
+                                        </select>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            const catVol = config.volume !== undefined ? config.volume : 100;
+                                            const finalVolume = (soundSettings.volume / 100) * catVol;
+                                            if (config.mode === 'custom') {
+                                              playCustomSound(cat.key, finalVolume);
+                                            } else {
+                                              playSynthesizedSound(cat.key, finalVolume);
+                                            }
+                                          }}
+                                          className="p-1 hover:text-white text-neutral-500 hover:bg-white/5 rounded transition-colors"
+                                          title="Test Sound"
+                                        >
+                                          <Play className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {config.enabled && (
+                                    <div className="space-y-1 pt-1.5 border-t border-white/5 animate-in fade-in duration-200">
+                                      <div className="flex justify-between text-[8px] uppercase font-bold text-neutral-500">
+                                        <span>Category Volume</span>
+                                        <span>{config.volume !== undefined ? config.volume : 100}%</span>
+                                      </div>
+                                      <input 
+                                        type="range" min="0" max="100" value={config.volume !== undefined ? config.volume : 100} 
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value);
+                                          setSoundSettings(prev => ({
+                                            ...prev,
+                                            categories: {
+                                              ...prev.categories,
+                                              [cat.key]: {
+                                                ...prev.categories[cat.key],
+                                                volume: val
+                                              }
+                                            }
+                                          }));
+                                        }}
+                                        className="w-full accent-accent-prog h-0.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {config.enabled && config.mode === 'custom' && (
+                                    <div className="flex items-center gap-2 pt-1.5 border-t border-white/5 justify-between">
+                                      <label className="cursor-pointer text-[8px] uppercase font-bold text-neutral-400 hover:text-white transition-colors flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5">
+                                        <Upload className="w-2.5 h-2.5" />
+                                        Upload Sound
+                                        <input 
+                                          type="file" 
+                                          accept="audio/*" 
+                                          className="hidden" 
+                                          onChange={(e) => handleCustomSoundUpload(cat.key, e)}
+                                        />
+                                      </label>
+                                      {localStorage.getItem(`broadcast_custom_sound_${cat.key}`) && (
+                                        <button
+                                          onClick={() => {
+                                            localStorage.removeItem(`broadcast_custom_sound_${cat.key}`);
+                                            alert(`Cleared custom sound for ${cat.label}.`);
+                                          }}
+                                          className="text-[8px] uppercase font-bold text-red-400 hover:text-red-300 transition-colors bg-red-500/10 px-1.5 py-1 rounded"
+                                        >
+                                          Clear
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2600,9 +3017,13 @@ const App: React.FC = () => {
                       <span className="uppercase">{item.event}</span>
                     </div>
                     <div className="flex items-start gap-3">
-                      {(item.event === 'receive' || item.event === 'send') && (
+                      {(item.event === 'receive' || item.event === 'send' || item.event === 'hint') && (
                         <div className="w-8 h-8 bg-white/5 rounded border border-white/10 flex items-center justify-center shrink-0">
-                          <img src={getLogo(item.class)} alt="" className="w-5 h-5 object-contain" />
+                          {item.event === 'hint' ? (
+                            <MapPin className="w-4 h-4 text-sky-400" />
+                          ) : (
+                            <img src={getLogo(item.class)} alt="" className="w-5 h-5 object-contain" />
+                          )}
                         </div>
                       )}
                       <div className="flex-1">
@@ -2611,9 +3032,11 @@ const App: React.FC = () => {
                             ? (item.from === item.to 
                                 ? <>{item.from} found <span className={getItemColor(item.class)}>{item.item}</span></>
                                 : <>{item.from} sent <span className={getItemColor(item.class)}>{item.item}</span> to {item.to}</>)
-                            : item.text}
+                            : item.event === 'hint'
+                              ? <><span className="text-accent-prog font-bold">{item.owner}</span>'s <span className={cn("font-bold", getItemColor(item.class))}>{item.item}</span> (<span className="text-sky-400 font-bold">{item.finder}</span>)</>
+                              : item.text}
                         </p>
-                        {showLocations && item.location && (
+                        {(item.event === 'hint' || (showLocations && item.location)) && item.location && (
                           <p className="text-[10px] text-neutral-400 italic mt-0.5">
                             at <span className="text-neutral-200 font-medium not-italic">{item.location}</span>
                           </p>

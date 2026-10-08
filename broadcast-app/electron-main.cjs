@@ -152,18 +152,48 @@ function createWindow() {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+  // CLICK-THROUGH: Make the overlay transparent to mouse events by default.
+  // The renderer will signal when the mouse enters/leaves interactive content.
+  win.setIgnoreMouseEvents(true, { forward: true });
+
   // Load the Production Build or fall back to Dev Server
   const distPath = path.join(__dirname, 'dist', 'index.html');
   const syncMode = settings && settings.sync_mode ? settings.sync_mode : 'all';
-
+  const bridgePort = settings && settings.bridge_port ? settings.bridge_port : 8089;
+  
   if (fs.existsSync(distPath)) {
-    win.loadFile(distPath, { query: { view: 'overlay', sync: syncMode } });
+    win.loadFile(distPath, { query: { view: 'overlay', sync: syncMode, port: String(bridgePort) } });
   } else {
-    win.loadURL(`http://localhost:5173?view=overlay&sync=${syncMode}`);
+    win.loadURL(`http://localhost:5173?view=overlay&sync=${syncMode}&port=${bridgePort}`);
   }
 
   // OPTIMIZATION: Lower frame rate even further when not needed
   win.webContents.setFrameRate(30);
+
+  // CUSTOM CSS: Allow users to customize colors/styling via an external custom.css file on disk
+  win.webContents.on('did-finish-load', () => {
+    try {
+      const settingsPath = getSettingsPath();
+      const baseDir = path.dirname(settingsPath);
+      const possibleCssPaths = [
+        path.join(baseDir, 'custom.css'),
+        path.join(baseDir, 'broadcast-app', 'custom.css'),
+        path.join(path.dirname(process.execPath), 'custom.css'),
+        path.join(path.dirname(process.execPath), '..', 'custom.css'),
+        path.join(path.dirname(process.execPath), '..', '..', 'custom.css')
+      ];
+      for (const cssPath of possibleCssPaths) {
+        if (fs.existsSync(cssPath)) {
+          const cssContent = fs.readFileSync(cssPath, 'utf8');
+          win.webContents.insertCSS(cssContent);
+          console.log(`[Custom CSS] Injected external styles from: ${cssPath}`);
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('[Custom CSS] Failed to inject:', err);
+    }
+  });
 
   // Savestate
   let isSavingBlocked = false;
@@ -173,6 +203,7 @@ function createWindow() {
     setTimeout(() => { isSavingBlocked = false; }, 500);
   });
 
+  let saveTimeout = null;
   const saveState = () => {
     if (isSavingBlocked) return;
     
@@ -182,19 +213,23 @@ function createWindow() {
     if (bounds.x === 0 && bounds.y === 0) return;
     if (bounds.width < 10 || bounds.height < 10) return;
 
-    const currentDisplay = screen.getDisplayMatching(bounds);
-    const displays = screen.getAllDisplays();
-    const displayIndex = displays.findIndex(d => d.id === currentDisplay.id);
-    
-    const currentSettings = loadSettings() || {};
-    currentSettings.win_x = bounds.x;
-    currentSettings.win_y = bounds.y;
-    currentSettings.win_w = bounds.width;
-    currentSettings.win_h = bounds.height;
-    currentSettings.display_index = displayIndex;
-    
-    saveSettings(currentSettings);
     win.webContents.send('window-bounds-updated', bounds);
+
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      const currentDisplay = screen.getDisplayMatching(bounds);
+      const displays = screen.getAllDisplays();
+      const displayIndex = displays.findIndex(d => d.id === currentDisplay.id);
+      
+      const currentSettings = loadSettings() || {};
+      currentSettings.win_x = bounds.x;
+      currentSettings.win_y = bounds.y;
+      currentSettings.win_w = bounds.width;
+      currentSettings.win_h = bounds.height;
+      currentSettings.display_index = displayIndex;
+      
+      saveSettings(currentSettings);
+    }, 300);
   };
 
   win.on('move', saveState);
@@ -213,6 +248,11 @@ function createWindow() {
 
   ipcMain.handle('get-window-bounds', () => {
     return win.getBounds();
+  });
+
+  ipcMain.on('set-window-position', (_event, x, y) => {
+    if (!win) return;
+    win.setPosition(Math.round(x), Math.round(y));
   });
 
   ipcMain.on('set-display', (event, index) => {
@@ -235,6 +275,11 @@ function createWindow() {
 
   ipcMain.on('close-app', () => {
     app.quit();
+  });
+
+  // CLICK-THROUGH: Toggle mouse event handling from the renderer
+  ipcMain.on('set-ignore-mouse-events', (_event, ignore, opts) => {
+    win.setIgnoreMouseEvents(ignore, opts || {});
   });
 
   // Watch for display changes

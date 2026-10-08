@@ -50,6 +50,7 @@ copy /Y Start_CLI.bat dist-release\ >nul
 copy /Y INSTALL_PYTHON_ONLY.bat dist-release\ >nul
 copy /Y README.md dist-release\ >nul
 copy /Y LICENSE dist-release\ >nul
+copy /Y custom.example.css dist-release\ >nul
 
 :: Copy bridge connection scripts
 copy /Y broadcast\bridge.py dist-release\broadcast\ >nul

@@ -111,9 +111,25 @@ def main():
     try:
         # 0. Start Web Server if needed (OBS / Overlay dev)
         dist_path = os.path.join(SCRIPT_DIR, "broadcast-app", "dist")
-        packaged_exe = os.path.join(SCRIPT_DIR, "broadcast-app", "dist-packaged", "win-unpacked", "Broadcast-Overlay.exe")
+        
+        if os.name == 'nt':
+            packaged_exe = os.path.join(SCRIPT_DIR, "broadcast-app", "dist-packaged", "win-unpacked", "Broadcast-Overlay.exe")
+        else:
+            packaged_exe = os.path.join(SCRIPT_DIR, "broadcast-app", "dist-packaged", "linux-unpacked", "Broadcast-Overlay")
+            
+        if not os.path.exists(packaged_exe) and os.name != 'nt':
+            import glob
+            appimages = glob.glob(os.path.join(SCRIPT_DIR, "broadcast-app", "dist-packaged", "Broadcast-Overlay*.AppImage"))
+            if appimages:
+                packaged_exe = appimages[0]
+                
         has_packaged = os.path.exists(packaged_exe)
         has_build = os.path.exists(dist_path) and os.path.exists(os.path.join(dist_path, "index.html"))
+        
+        use_shell = (os.name == 'nt')
+        vite_cmd = ["cmd", "/c", "npx vite --no-open"] if os.name == 'nt' else ["npx", "vite", "--no-open"]
+        npm_build_cmd = ["cmd", "/c", "npm run build"] if os.name == 'nt' else ["npm", "run", "build"]
+        npm_overlay_cmd = ["cmd", "/c", "npm run overlay"] if os.name == 'nt' else ["npm", "run", "overlay"]
         
         if settings.get("enable_obs"):
             if has_build:
@@ -122,17 +138,17 @@ def main():
                 procs.append(subprocess.Popen(cmd))
             else:
                 print("\n[0/3] Starting Vite Dev Server (for OBS) on port 5173...")
-                procs.append(subprocess.Popen(["cmd", "/c", "npx vite --no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+                procs.append(subprocess.Popen(vite_cmd, cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=use_shell))
         elif settings.get("enable_overlay") and not has_packaged and not has_build:
             print("\n[0/3] Starting Vite Dev Server (for Overlay Dev) on port 5173...")
-            procs.append(subprocess.Popen(["cmd", "/c", "npx vite --no-open"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+            procs.append(subprocess.Popen(vite_cmd, cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=use_shell))
 
         # 1. Check/Build Frontend if Overlay is enabled and not packaged
         if settings.get("enable_overlay") and not has_packaged:
             print("[1/3] Checking Frontend Build...")
             if not os.path.exists(dist_path) or not os.path.exists(os.path.join(dist_path, "index.html")):
                 print("      Building Frontend for the first time... (This may take a minute)")
-                subprocess.run(["cmd", "/c", "npm run build"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True)
+                subprocess.run(npm_build_cmd, cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=use_shell)
                 print("      Finished building Frontend!")
         
         # 2. Start Bridge
@@ -166,10 +182,17 @@ def main():
             
             if has_packaged:
                 print("\r[3/3] Starting Electron Standalone Overlay UI...        ")
-                procs.append(subprocess.Popen([packaged_exe]))
+                if os.name != 'nt':
+                    try:
+                        os.chmod(packaged_exe, 0o755)
+                    except: pass
+                    # SUID Sandbox bypass for Bazzite/Steam Deck
+                    procs.append(subprocess.Popen([packaged_exe, "--no-sandbox"]))
+                else:
+                    procs.append(subprocess.Popen([packaged_exe]))
             else:
                 print("\r[3/3] Starting Electron Overlay UI...        ")
-                procs.append(subprocess.Popen(["cmd", "/c", "npm run overlay"], cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=True))
+                procs.append(subprocess.Popen(npm_overlay_cmd, cwd=os.path.join(SCRIPT_DIR, "broadcast-app"), shell=use_shell))
         else:
             print("[3/3] Electron Overlay disabled in settings. Skipping.")
         
@@ -190,8 +213,16 @@ def main():
     finally:
         for p in procs:
             try:
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
-            except: pass
+                if os.name == 'nt':
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+                else:
+                    p.terminate()
+                    p.wait(timeout=2)
+            except:
+                try:
+                    p.kill()
+                except:
+                    pass
         
         print("Cleaned up background processes.")
 

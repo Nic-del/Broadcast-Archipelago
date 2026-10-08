@@ -6,7 +6,10 @@ import json
 import os
 import sys
 import ctypes
-from ctypes import wintypes
+try:
+    from ctypes import wintypes
+except ImportError:
+    wintypes = None
 
 # Settings and Base Path
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -61,38 +64,65 @@ def load_settings():
 
 def get_monitors():
     monitors = []
-    def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
-        rect = lprcMonitor.contents
-        monitors.append({
-            'x': rect.left,
-            'y': rect.top,
-            'width': rect.right - rect.left,
-            'height': rect.bottom - rect.top
-        })
-        return True
-    MonitorEnumProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
-    ctypes.windll.user32.EnumDisplayMonitors(None, None, MonitorEnumProc(callback), 0)
-    return monitors
-
-    return monitors
+    if os.name == 'nt' and wintypes is not None:
+        try:
+            def callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
+                rect = lprcMonitor.contents
+                monitors.append({
+                    'x': rect.left,
+                    'y': rect.top,
+                    'width': rect.right - rect.left,
+                    'height': rect.bottom - rect.top
+                })
+                return True
+            MonitorEnumProc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HMONITOR, wintypes.HDC, ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
+            ctypes.windll.user32.EnumDisplayMonitors(None, None, MonitorEnumProc(callback), 0)
+            if monitors:
+                return monitors
+        except Exception as e:
+            print(f"Error getting Windows monitors: {e}")
+            
+    # Fallback for Linux, macOS, or failed Windows ctypes calls:
+    try:
+        temp_root = tk.Tk()
+        temp_root.withdraw()
+        w = temp_root.winfo_screenwidth()
+        h = temp_root.winfo_screenheight()
+        temp_root.destroy()
+        return [{'x': 0, 'y': 0, 'width': w, 'height': h}]
+    except:
+        return [{'x': 0, 'y': 0, 'width': 1920, 'height': 1080}]
 
 def kill_port(port):
     """Forcefully kill any process using a specific TCP port."""
-    try:
-        import subprocess
-        # Find PIDs using the port
-        output = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True, creationflags=0x08000000).decode()
-        pids = set()
-        for line in output.strip().split('\n'):
-            parts = line.split()
-            if parts:
-                pids.add(parts[-1])
-        for pid in pids:
-            if pid != "0": # Avoid killing system
-                subprocess.run(['taskkill', '/F', '/T', '/PID', pid], capture_output=True, creationflags=0x08000000)
-                print(f"Killed process {pid} using port {port}")
-    except:
-        pass
+    import subprocess
+    if os.name == 'nt':
+        try:
+            output = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True, creationflags=0x08000000).decode()
+            pids = set()
+            for line in output.strip().split('\n'):
+                parts = line.split()
+                if parts:
+                    pids.add(parts[-1])
+            for pid in pids:
+                if pid != "0": # Avoid killing system
+                    subprocess.run(['taskkill', '/F', '/T', '/PID', pid], capture_output=True, creationflags=0x08000000)
+                    print(f"Killed process {pid} using port {port}")
+        except:
+            pass
+    else:
+        # Linux/macOS
+        try:
+            subprocess.run(['fuser', '-k', '-n', 'tcp', str(port)], capture_output=True)
+        except:
+            try:
+                output = subprocess.check_output(f'lsof -t -i:{port}', shell=True).decode()
+                for pid in output.strip().split('\n'):
+                    if pid.strip():
+                        subprocess.run(['kill', '-9', pid.strip()])
+            except:
+                pass
+
 
 class BroadcastLauncherApp:
     def create_dim_field(self, parent, label, val, row, col):
@@ -111,6 +141,7 @@ class BroadcastLauncherApp:
         self.root.geometry("850x640") # Wider but shorter for two columns
         self.root.resizable(False, False)
         self.root.configure(bg="#0d0d0f")
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.settings = load_settings()
         self.is_running = False
@@ -489,7 +520,8 @@ class BroadcastLauncherApp:
         import time
         time.sleep(1) 
         
-        kill_port(8089) # Bridge Port (Always needed)
+        bridge_port = self.settings.get("bridge_port", 8089)
+        kill_port(bridge_port) # Bridge Port (Always needed)
         
         # Free Vite port if any web feature is needed
         if self.use_obs.get() or self.use_overlay.get():
@@ -503,11 +535,50 @@ class BroadcastLauncherApp:
 
     def launch_background_tasks(self):
         # Determine best python command
-        py_cmd = "py -3.12"
-        try:
-            subprocess.run(["py", "-3.12", "--version"], capture_output=True, check=True)
-        except:
-            py_cmd = "python" # Fallback
+        py_cmd = None
+        
+        def check_python_exe(exe_path):
+            try:
+                creationflags = 0x08000000 if os.name == 'nt' else 0
+                res = subprocess.run([exe_path, "-c", "import websockets, psutil"], capture_output=True, creationflags=creationflags)
+                return res.returncode == 0
+            except:
+                return False
+
+        # 1. Try sys.executable first (if it has websockets and psutil)
+        if sys.executable and check_python_exe(sys.executable):
+            py_cmd = sys.executable
+
+        # 2. Try resolving py -3.12
+        if not py_cmd:
+            try:
+                creationflags = 0x08000000 if os.name == 'nt' else 0
+                resolved = subprocess.check_output(["py", "-3.12", "-c", "import sys; print(sys.executable)"], creationflags=creationflags).decode().strip()
+                if resolved and check_python_exe(resolved):
+                    py_cmd = resolved
+            except:
+                pass
+
+        # 3. Try standard python executable in PATH
+        if not py_cmd:
+            import shutil
+            python_in_path = shutil.which("python")
+            if python_in_path and check_python_exe(python_in_path):
+                py_cmd = python_in_path
+
+        # 4. Try standard py executable in PATH (default version)
+        if not py_cmd:
+            try:
+                creationflags = 0x08000000 if os.name == 'nt' else 0
+                resolved = subprocess.check_output(["py", "-c", "import sys; print(sys.executable)"], creationflags=creationflags).decode().strip()
+                if resolved and check_python_exe(resolved):
+                    py_cmd = resolved
+            except:
+                pass
+
+        # 5. Fallbacks if nothing succeeded
+        if not py_cmd:
+            py_cmd = sys.executable or "python"
             
         # Helpers for logging
         def spawn_with_log(cmd, name, cwd=None):
@@ -523,8 +594,18 @@ class BroadcastLauncherApp:
             env["FORCE_COLOR"] = "0"
             env["NO_COLOR"] = "1"
             env["TERM"] = "dumb"
+            
             # 0x08000000 is CREATE_NO_WINDOW on Windows
-            return subprocess.Popen(cmd, cwd=cwd, stdout=f, stderr=f, shell=True if isinstance(cmd, str) else False, creationflags=0x08000000, env=env)
+            popen_kwargs = {
+                "cwd": cwd,
+                "stdout": f,
+                "stderr": f,
+                "shell": True if isinstance(cmd, str) else False,
+                "env": env
+            }
+            if os.name == 'nt':
+                popen_kwargs["creationflags"] = 0x08000000
+            return subprocess.Popen(cmd, **popen_kwargs)
 
         # Start Web Server only if needed
         dist_path = os.path.join(APP_DIR, "broadcast-app", "dist")
@@ -533,22 +614,25 @@ class BroadcastLauncherApp:
         if self.use_obs.get():
             if has_build:
                 # Use lightweight Python built-in HTTP server to serve static compiled frontend on port 5173
-                cmd = py_cmd.split() + ["-m", "http.server", "5173", "--directory", dist_path]
+                cmd = [py_cmd, "-u", "-m", "http.server", "5173", "--directory", dist_path]
                 self.procs.append(spawn_with_log(cmd, "webserver"))
             else:
                 # Fall back to Vite dev server if dist is missing
-                self.procs.append(spawn_with_log(["cmd", "/c", "npx vite --no-open"], "vite", cwd="broadcast-app"))
+                vite_cmd = ["cmd", "/c", "npx vite --no-open"] if os.name == 'nt' else ["npx", "vite", "--no-open"]
+                self.procs.append(spawn_with_log(vite_cmd, "vite", cwd="broadcast-app"))
         elif self.use_overlay.get() and not has_build:
             # Needed for dev mode overlay without pre-built dist
-            self.procs.append(spawn_with_log(["cmd", "/c", "npx vite --no-open"], "vite", cwd="broadcast-app"))
+            vite_cmd = ["cmd", "/c", "npx vite --no-open"] if os.name == 'nt' else ["npx", "vite", "--no-open"]
+            self.procs.append(spawn_with_log(vite_cmd, "vite", cwd="broadcast-app"))
         
         # Determine bridge mode: If EITHER is 'all' or 'filtered', bridge must be 'all' to get the data
         bridge_mode = "all"
         if self.settings.get("sync_mode") == "personal" and self.settings.get("obs_sync_mode") == "personal":
             bridge_mode = "personal"
         
+        bridge_port = self.settings.get("bridge_port", 8089)
         bridge_script = os.path.join(APP_DIR, "broadcast", "bridge.py")
-        bridge_cmd = py_cmd.split() + ["-u", bridge_script, "--server", self.settings["server"], "--slot", self.settings["slot"], "--mode", bridge_mode]
+        bridge_cmd = [py_cmd, "-u", bridge_script, "--server", self.settings["server"], "--slot", self.settings["slot"], "--mode", bridge_mode, "--port", str(bridge_port)]
         if self.settings["password"]: bridge_cmd.extend(["--password", self.settings["password"]])
         
         cached_game = self.settings.get("last_game")
@@ -576,13 +660,37 @@ class BroadcastLauncherApp:
         # Launch Electron Overlay ONLY if enabled
         if self.use_overlay.get():
             # First, check if there is a pre-packaged standalone production version of the overlay
-            packaged_exe = os.path.join(APP_DIR, "broadcast-app", "dist-packaged", "win-unpacked", "Broadcast-Overlay.exe")
+            if os.name == 'nt':
+                packaged_exe = os.path.join(APP_DIR, "broadcast-app", "dist-packaged", "win-unpacked", "Broadcast-Overlay.exe")
+            else:
+                packaged_exe = os.path.join(APP_DIR, "broadcast-app", "dist-packaged", "linux-unpacked", "Broadcast-Overlay")
+                
+            # If that doesn't exist, search for AppImage
+            if not os.path.exists(packaged_exe) and os.name != 'nt':
+                import glob
+                appimages = glob.glob(os.path.join(APP_DIR, "broadcast-app", "dist-packaged", "Broadcast-Overlay*.AppImage"))
+                if appimages:
+                    packaged_exe = appimages[0]
+                    
             if os.path.exists(packaged_exe):
-                self.procs.append(spawn_with_log([packaged_exe], "overlay"))
+                if os.name != 'nt':
+                    try:
+                        os.chmod(packaged_exe, 0o755)
+                    except: pass
+                    # SUID Sandbox bypass for Bazzite/Steam Deck
+                    self.procs.append(spawn_with_log([packaged_exe, "--no-sandbox"], "overlay"))
+                else:
+                    self.procs.append(spawn_with_log([packaged_exe], "overlay"))
                 self.status_label.config(text="Status: Overlay (Standalone) & Bridge Operational", fg="#55ff55")
             else:
                 # Fall back to development node_modules environment
-                electron_exe = os.path.join(APP_DIR, "broadcast-app", "node_modules", "electron", "dist", "electron.exe")
+                if os.name == 'nt':
+                    electron_exe = os.path.join(APP_DIR, "broadcast-app", "node_modules", "electron", "dist", "electron.exe")
+                    dev_cmd = ["cmd", "/c", "npm run overlay"]
+                else:
+                    electron_exe = os.path.join(APP_DIR, "broadcast-app", "node_modules", "electron", "dist", "electron")
+                    dev_cmd = ["npm", "run", "overlay"]
+                    
                 if not os.path.exists(electron_exe):
                     messagebox.showerror(
                         "Electron Missing / Error",
@@ -590,13 +698,13 @@ class BroadcastLauncherApp:
                         "This usually happens due to connection issues or antivirus block during setup.\n\n"
                         "To fix this:\n"
                         "1. Close this app.\n"
-                        "2. Run 'INSTALL_NODE_ONLY.bat' to trigger automatic repair.\n"
-                        "3. If that doesn't work, open CMD in 'broadcast-app' and run:\n"
+                        f"2. Run {'INSTALLATION.bat' if os.name == 'nt' else './INSTALLATION.sh'} to trigger automatic repair.\n"
+                        "3. If that doesn't work, open terminal in 'broadcast-app' and run:\n"
                         "   node node_modules/electron/install.js"
                     )
                     self.stop_system()
                     return
-                self.procs.append(spawn_with_log(["cmd", "/c", "npm run overlay"], "overlay", cwd="broadcast-app"))
+                self.procs.append(spawn_with_log(dev_cmd, "overlay", cwd="broadcast-app"))
                 self.status_label.config(text="Status: Overlay & Bridge Operational", fg="#55ff55")
         else:
             self.status_label.config(text="Status: Web Server & Bridge Operational", fg="#55ff55")
@@ -648,6 +756,10 @@ class BroadcastLauncherApp:
         self.btn_text.set("START SYSTEM")
         if hasattr(self, 'start_btn'): self.start_btn.configure(bg="#af99ef", fg="#121214")
         self.status_label.config(text="Status: Stopped", fg="#6d8be8")
+
+    def on_close(self):
+        self.stop_system()
+        self.root.destroy()
 
 if __name__ == "__main__":
     root = tk.Tk()

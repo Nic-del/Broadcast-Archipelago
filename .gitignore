@@ -8,6 +8,6 @@ broadcast_settings.json
 broadcast/slot_cache.json
 broadcast_avatars.json
 dist-release/
-BroadCast-Archipelago.zip
+*.zip
 dist-packaged/
 broadcast-app/dist-packaged/

@@ -20,6 +20,8 @@ import {
   Play,
   Volume2,
   VolumeX,
+  MessageSquare,
+  Trophy,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -27,7 +29,7 @@ import { cn } from './lib/utils';
 interface GameNotification {
   id: string;
   type: string;
-  event: 'receive' | 'send' | 'normal' | 'error' | 'hint';
+  event: 'receive' | 'send' | 'normal' | 'error' | 'hint' | 'chat' | 'goal' | 'release' | 'collect';
   item?: string;
   from?: string;
   to?: string;
@@ -119,6 +121,8 @@ const App: React.FC = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [windowBounds, setWindowBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const currentWinPosRef = useRef({ x: 0, y: 0 });
+  const isDraggingRef = useRef(false);
   const [playerList, setPlayerList] = useState<string[]>([]);
   const [multiSlots, setMultiSlots] = useState<string[]>([]);
   const [trackedPlayers, setTrackedPlayers] = useState<string[]>(() => {
@@ -161,6 +165,22 @@ const App: React.FC = () => {
   const [showLocations, setShowLocations] = useState<boolean>(() => {
     const saved = localStorage.getItem('broadcast_show_locations');
     return saved ? JSON.parse(saved) : true;
+  });
+  const [showChatPopups, setShowChatPopups] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_show_chat_popups');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [showGoalPopups, setShowGoalPopups] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_show_goal_popups');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [showServerPopups, setShowServerPopups] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_show_server_popups');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [filterChatAndGoals, setFilterChatAndGoals] = useState<boolean>(() => {
+    const saved = localStorage.getItem('broadcast_filter_chat_and_goals');
+    return saved ? JSON.parse(saved) : false;
   });
 
   const [useGridPopupOverlay, setUseGridPopupOverlay] = useState<boolean>(() => {
@@ -230,6 +250,14 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('broadcast_notif_padding');
     return saved ? parseInt(saved) : 12;
   });
+  const [notifWidthMode, setNotifWidthMode] = useState<'auto' | 'fixed'>(() => {
+    const saved = localStorage.getItem('broadcast_notif_width_mode');
+    return (saved as 'auto' | 'fixed') || 'auto';
+  });
+  const [notifWidth, setNotifWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('broadcast_notif_width');
+    return saved ? parseInt(saved) : 384;
+  });
 
   const [overlayPosition, setOverlayPosition] = useState<string>(() => {
     const saved = localStorage.getItem('broadcast_overlay_position');
@@ -258,6 +286,8 @@ const App: React.FC = () => {
           junk: { enabled: false, mode: 'synth', volume: 50 },
           trap: { enabled: true, mode: 'synth', volume: 100 },
           hint: { enabled: true, mode: 'synth', volume: 80 },
+          chat: { enabled: true, mode: 'synth', volume: 60 },
+          goal: { enabled: true, mode: 'synth', volume: 100 },
           other: { enabled: true, mode: 'synth', volume: 70 }
         };
         for (const [key, val] of Object.entries(defaultCats)) {
@@ -283,6 +313,8 @@ const App: React.FC = () => {
         junk: { enabled: false, mode: 'synth', volume: 50 },
         trap: { enabled: true, mode: 'synth', volume: 100 },
         hint: { enabled: true, mode: 'synth', volume: 80 },
+        chat: { enabled: true, mode: 'synth', volume: 60 },
+        goal: { enabled: true, mode: 'synth', volume: 100 },
         other: { enabled: true, mode: 'synth', volume: 70 }
       }
     };
@@ -359,6 +391,36 @@ const App: React.FC = () => {
         gain.connect(masterGain);
         osc.start(now);
         osc.stop(now + 0.45);
+      } else if (type === 'chat') {
+        const notes = [600.00, 800.00];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+          gain.gain.setValueAtTime(0, now + idx * 0.05);
+          gain.gain.linearRampToValueAtTime(0.2, now + idx * 0.05 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.05 + 0.1);
+          osc.connect(gain);
+          gain.connect(masterGain);
+          osc.start(now + idx * 0.05);
+          osc.stop(now + idx * 0.05 + 0.12);
+        });
+      } else if (type === 'goal') {
+        const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+          gain.gain.setValueAtTime(0, now + idx * 0.06);
+          gain.gain.linearRampToValueAtTime(0.35, now + idx * 0.06 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.06 + 0.4);
+          osc.connect(gain);
+          gain.connect(masterGain);
+          osc.start(now + idx * 0.06);
+          osc.stop(now + idx * 0.06 + 0.45);
+        });
       } else if (type === 'hint') {
         const freqs = [392.00, 493.88, 587.33];
         freqs.forEach((freq, idx) => {
@@ -427,6 +489,10 @@ const App: React.FC = () => {
   const playSoundForNotification = (event: string, itemClass?: number) => {
     if (event === 'hint') {
       playNotificationSound('hint');
+    } else if (event === 'chat') {
+      playNotificationSound('chat');
+    } else if (event === 'goal' || event === 'release' || event === 'collect') {
+      playNotificationSound('goal');
     } else if (event === 'receive' || event === 'send') {
       if (itemClass === 0) {
         playNotificationSound('progression');
@@ -507,6 +573,8 @@ const App: React.FC = () => {
       onDisplaysUpdated: (callback: (data: DisplayInfo[]) => void) => () => void;
       onWindowBoundsUpdated: (callback: (bounds: { x: number; y: number; width: number; height: number }) => void) => () => void;
       setDisplay: (idx: number) => void;
+      setIgnoreMouseEvents: (ignore: boolean, opts?: { forward?: boolean }) => void;
+      setWindowPosition: (x: number, y: number) => void;
     }
     const electron = (window as unknown as { electron: ElectronBridge }).electron;
     if (electron) {
@@ -516,11 +584,15 @@ const App: React.FC = () => {
       
       electron.getWindowBounds().then((bounds) => {
         setWindowBounds(bounds);
+        currentWinPosRef.current = { x: bounds.x, y: bounds.y };
       });
 
       const unsubDisplays = electron.onDisplaysUpdated((data: DisplayInfo[]) => setDisplays(data));
       const unsubBounds = electron.onWindowBoundsUpdated((bounds) => {
         setWindowBounds(bounds);
+        if (!isDraggingRef.current) {
+          currentWinPosRef.current = { x: bounds.x, y: bounds.y };
+        }
       });
 
       return () => {
@@ -529,6 +601,75 @@ const App: React.FC = () => {
       };
     }
   }, []);
+
+  // CLICK-THROUGH: Make transparent areas pass clicks through to the game/tracker behind
+  useEffect(() => {
+    const electron = (window as any).electron;
+    if (!electron?.setIgnoreMouseEvents || isStreamMode) return;
+
+    let isIgnoring = true;
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (isDraggingRef.current) return;
+
+      const target = e.target as HTMLElement;
+      if (!target?.closest) return;
+
+      // Only capture clicks when mouse is over an element marked [data-clickable]
+      const overInteractive = target.closest('[data-clickable]') !== null;
+
+      if (overInteractive && isIgnoring) {
+        electron.setIgnoreMouseEvents(false);
+        isIgnoring = false;
+      } else if (!overInteractive && !isIgnoring) {
+        electron.setIgnoreMouseEvents(true, { forward: true });
+        isIgnoring = true;
+      }
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      electron.setIgnoreMouseEvents(false);
+    };
+  }, [isStreamMode]);
+
+  const handleDragMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    if ((e.target as HTMLElement).closest('button')) return;
+
+    e.preventDefault();
+    const electron = (window as any).electron;
+    if (!electron?.setWindowPosition) return;
+
+    isDraggingRef.current = true;
+    electron.setIgnoreMouseEvents?.(false);
+
+    const startMouseX = e.screenX;
+    const startMouseY = e.screenY;
+    const startWinX = currentWinPosRef.current.x;
+    const startWinY = currentWinPosRef.current.y;
+
+    const onDragMove = (moveEvent: MouseEvent) => {
+      const newX = startWinX + (moveEvent.screenX - startMouseX);
+      const newY = startWinY + (moveEvent.screenY - startMouseY);
+      currentWinPosRef.current = { x: newX, y: newY };
+      electron.setWindowPosition(newX, newY);
+    };
+
+    const onDragEnd = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener('mousemove', onDragMove);
+      window.removeEventListener('mouseup', onDragEnd);
+    };
+
+    window.addEventListener('mousemove', onDragMove);
+    window.addEventListener('mouseup', onDragEnd);
+  };
+
+
+
 
   // Calculate active display index based on window position
   const activeDisplayIndex = useMemo(() => {
@@ -565,11 +706,31 @@ const App: React.FC = () => {
   const durationsRef = useRef({ overlay: 10, obs: 15, fade: false });
   const gridMaxPeopleRef = useRef<number>(gridMaxPeople);
   const singleBubbleFocusRef = useRef<boolean>(singleBubbleFocus);
+  const showChatPopupsRef = useRef<boolean>(showChatPopups);
+  const showGoalPopupsRef = useRef<boolean>(showGoalPopups);
+  const showServerPopupsRef = useRef<boolean>(showServerPopups);
+  const filterChatAndGoalsRef = useRef<boolean>(filterChatAndGoals);
 
   // Sync refs with state
   useEffect(() => {
     syncModeRef.current = currentSyncMode;
   }, [currentSyncMode]);
+
+  useEffect(() => {
+    showChatPopupsRef.current = showChatPopups;
+  }, [showChatPopups]);
+
+  useEffect(() => {
+    showGoalPopupsRef.current = showGoalPopups;
+  }, [showGoalPopups]);
+
+  useEffect(() => {
+    showServerPopupsRef.current = showServerPopups;
+  }, [showServerPopups]);
+
+  useEffect(() => {
+    filterChatAndGoalsRef.current = filterChatAndGoals;
+  }, [filterChatAndGoals]);
 
   useEffect(() => {
     gridMaxPeopleRef.current = gridMaxPeople;
@@ -659,6 +820,22 @@ const App: React.FC = () => {
   }, [showLocations]);
 
   useEffect(() => {
+    localStorage.setItem('broadcast_show_chat_popups', JSON.stringify(showChatPopups));
+  }, [showChatPopups]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_show_goal_popups', JSON.stringify(showGoalPopups));
+  }, [showGoalPopups]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_show_server_popups', JSON.stringify(showServerPopups));
+  }, [showServerPopups]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_filter_chat_and_goals', JSON.stringify(filterChatAndGoals));
+  }, [filterChatAndGoals]);
+
+  useEffect(() => {
     localStorage.setItem('broadcast_avatar_size', avatarSize.toString());
   }, [avatarSize]);
 
@@ -687,6 +864,14 @@ const App: React.FC = () => {
   }, [notifPadding]);
 
   useEffect(() => {
+    localStorage.setItem('broadcast_notif_width_mode', notifWidthMode);
+  }, [notifWidthMode]);
+
+  useEffect(() => {
+    localStorage.setItem('broadcast_notif_width', notifWidth.toString());
+  }, [notifWidth]);
+
+  useEffect(() => {
     localStorage.setItem('broadcast_overlay_position', overlayPosition);
   }, [overlayPosition]);
 
@@ -701,7 +886,9 @@ const App: React.FC = () => {
     const connect = () => {
       const hostname = window.location.hostname;
       const wsHost = (hostname === 'localhost' || !hostname) ? '127.0.0.1' : hostname;
-      const socket = new WebSocket(`ws://${wsHost}:8089`);
+      const urlParams = new URLSearchParams(window.location.search);
+      const wsPort = urlParams.get('port') || '8089';
+      const socket = new WebSocket(`ws://${wsHost}:${wsPort}`);
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -763,6 +950,8 @@ const App: React.FC = () => {
             if (data.notif_color !== undefined) setNotifColor(data.notif_color);
             if (data.notif_layout !== undefined) setNotifLayout(data.notif_layout);
             if (data.notif_padding !== undefined) setNotifPadding(data.notif_padding);
+            if (data.notif_width_mode !== undefined) setNotifWidthMode(data.notif_width_mode);
+            if (data.notif_width !== undefined) setNotifWidth(data.notif_width);
             if (data.show_locations !== undefined) setShowLocations(data.show_locations);
 
             // Dynamic Mode Sync from Bridge
@@ -802,6 +991,14 @@ const App: React.FC = () => {
           }
 
           if (data.type === 'notification') {
+            // Check if chat or goal notifications are completely disabled
+            if (data.event === 'chat' && !showChatPopupsRef.current) {
+              return;
+            }
+            if (data.event === 'goal' || data.event === 'release' || data.event === 'collect') {
+              if (!showGoalPopupsRef.current) return;
+            }
+
             // Apply sync filtering using the REF to avoid stale closures
             const mode = syncModeRef.current;
             
@@ -809,20 +1006,33 @@ const App: React.FC = () => {
             if (data.is_test) {
               // Continue processing
             } else {
-              if (mode === 'personal' && !data.is_mine) {
-                return;
-              }
-              if (mode === 'filtered') {
-                const isFromTracked = trackedPlayersRef.current.includes(data.from);
-                const isToTracked = trackedPlayersRef.current.includes(data.to);
-                if (!isFromTracked && !isToTracked) {
+              const isChatOrGoal = data.event === 'chat' || data.event === 'goal' || data.event === 'release' || data.event === 'collect';
+              const shouldFilter = !isChatOrGoal || filterChatAndGoalsRef.current;
+
+              if (shouldFilter) {
+                // If filtering is enabled for chat/goals but the global sync mode is 'all',
+                // we treat it as 'filtered' (tracked players + self) so they actually get filtered.
+                const activeFilterMode = (isChatOrGoal && mode === 'all') ? 'filtered' : mode;
+
+                if (activeFilterMode === 'personal' && !data.is_mine) {
                   return;
+                }
+                if (activeFilterMode === 'filtered') {
+                  if (data.is_mine) {
+                    // Always show our own chats/goals
+                  } else {
+                    const isFromTracked = trackedPlayersRef.current.includes(data.from);
+                    const isToTracked = trackedPlayersRef.current.includes(data.to);
+                    if (!isFromTracked && !isToTracked) {
+                      return;
+                    }
+                  }
                 }
               }
             }
 
-            // Skip system messages in OBS mode
-            if (isStreamMode && (data.event === 'normal' || data.event === 'error')) {
+            // Skip system messages if disabled or in OBS mode
+            if ((data.event === 'normal' || data.event === 'error') && (!showServerPopupsRef.current || isStreamMode)) {
               return;
             }
 
@@ -962,6 +1172,8 @@ const App: React.FC = () => {
             if (data.notif_color !== undefined) setNotifColor(data.notif_color);
             if (data.notif_layout !== undefined) setNotifLayout(data.notif_layout);
             if (data.notif_padding !== undefined) setNotifPadding(data.notif_padding);
+            if (data.notif_width_mode !== undefined) setNotifWidthMode(data.notif_width_mode);
+            if (data.notif_width !== undefined) setNotifWidth(data.notif_width);
           }
         } catch (e) { console.error(e); }
       };
@@ -977,18 +1189,102 @@ const App: React.FC = () => {
       { name: "50 Rupees", class: 2 },
       { name: "Ice Trap", class: 3 }
     ];
-    const randomItem = testItems[Math.floor(Math.random() * testItems.length)];
     
-    const newNotif = {
-      type: 'notification',
-      event: 'receive' as const,
-      item: randomItem.name,
-      from: 'Test Player',
-      to: 'Main Player',
-      class: randomItem.class,
-      my_alias: 'Main Player',
-      is_test: true
-    };
+    const events = ['receive', 'send', 'chat', 'goal', 'release', 'collect', 'hint', 'error', 'normal'];
+    const selectedEvent = events[Math.floor(Math.random() * events.length)];
+    
+    let newNotif;
+    if (selectedEvent === 'chat') {
+      newNotif = {
+        type: 'notification',
+        event: 'chat' as const,
+        text: 'This is a test chat message from the Archipelago room!',
+        from: 'Test Player',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'goal') {
+      newNotif = {
+        type: 'notification',
+        event: 'goal' as const,
+        text: 'Test Player has completed their goal (Triforce Hunt)!',
+        from: 'Test Player',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'release') {
+      newNotif = {
+        type: 'notification',
+        event: 'release' as const,
+        text: 'Test Player has released their remaining items!',
+        from: 'Test Player',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'collect') {
+      newNotif = {
+        type: 'notification',
+        event: 'collect' as const,
+        text: 'Test Player has collected their remaining items!',
+        from: 'Test Player',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'hint') {
+      newNotif = {
+        type: 'notification',
+        event: 'hint' as const,
+        item: 'Bow',
+        finder: 'Test Player',
+        owner: 'Main Player',
+        location: 'Eastern Palace',
+        found: false,
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'error') {
+      newNotif = {
+        type: 'notification',
+        event: 'error' as const,
+        text: 'Connection to Archipelago server lost. Retrying...',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'normal') {
+      newNotif = {
+        type: 'notification',
+        event: 'normal' as const,
+        text: 'Successfully connected to Archipelago server!',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else if (selectedEvent === 'send') {
+      const randomItem = testItems[Math.floor(Math.random() * testItems.length)];
+      newNotif = {
+        type: 'notification',
+        event: 'send' as const,
+        item: randomItem.name,
+        from: 'Main Player',
+        to: 'Friend Player',
+        class: randomItem.class,
+        location: 'Death Mountain',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    } else {
+      const randomItem = testItems[Math.floor(Math.random() * testItems.length)];
+      newNotif = {
+        type: 'notification',
+        event: 'receive' as const,
+        item: randomItem.name,
+        from: 'Test Player',
+        to: 'Main Player',
+        class: randomItem.class,
+        location: 'Hyrule Castle',
+        my_alias: 'Main Player',
+        is_test: true
+      };
+    }
 
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify(newNotif));
@@ -1225,7 +1521,9 @@ const App: React.FC = () => {
       show_event_label: true,
       notif_color: '#171717',
       notif_layout: 'standard',
-      notif_padding: 12
+      notif_padding: 12,
+      notif_width_mode: 'auto' as const,
+      notif_width: 384
     };
     
     setAvatarSize(defaults.avatar_size);
@@ -1235,6 +1533,8 @@ const App: React.FC = () => {
     setNotifColor(defaults.notif_color);
     setNotifLayout(defaults.notif_layout as any);
     setNotifPadding(defaults.notif_padding);
+    setNotifWidthMode(defaults.notif_width_mode);
+    setNotifWidth(defaults.notif_width);
     
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({
@@ -1306,13 +1606,13 @@ const App: React.FC = () => {
       case 'bottom-right':
         return cn(
           'absolute bottom-4 flex flex-col gap-3 items-end max-w-sm transition-all duration-300 text-right',
-          isFlipped ? 'right-28 left-6' : 'right-6 left-28'
+          isFlipped ? 'right-28' : 'right-6'
         );
       case 'bottom-left':
       default:
         return cn(
           'absolute bottom-4 flex flex-col gap-3 items-start max-w-sm transition-all duration-300',
-          isFlipped ? 'left-6 right-28' : 'left-28 right-6'
+          isFlipped ? 'left-6' : 'left-28'
         );
     }
   };
@@ -1355,7 +1655,7 @@ const App: React.FC = () => {
   }, [windowBounds, displays, activeDisplayIndex]);
 
   return (
-    <div className="h-screen w-screen flex flex-col md:flex-row bg-transparent">
+    <div className={cn("h-screen w-screen flex flex-col md:flex-row bg-transparent", !isStreamMode && "pointer-events-none")}>
       {/* Overlay Area (Notifications / Grid Avatars) */}
       <div className={cn(
         "flex-1 relative overflow-hidden pointer-events-none p-4",
@@ -1443,7 +1743,15 @@ const App: React.FC = () => {
                                 <span className="font-bold uppercase tracking-wider text-neutral-400" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
                                   {player.activeNotification.event === 'hint' 
                                     ? 'Item Hint' 
-                                    : (player.activeNotification.from === player.activeNotification.to ? 'Item Found' : 'Sent Item')}
+                                    : player.activeNotification.event === 'chat'
+                                      ? 'Chat Message'
+                                      : player.activeNotification.event === 'goal'
+                                        ? 'Goal Completion'
+                                        : player.activeNotification.event === 'release'
+                                          ? 'Item Release'
+                                          : player.activeNotification.event === 'collect'
+                                            ? 'Item Collection'
+                                            : (player.activeNotification.from === player.activeNotification.to ? 'Item Found' : 'Sent Item')}
                                 </span>
                               )}
                               {showTimestamp && <span className="text-neutral-500" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>{player.activeNotification.timestamp}</span>}
@@ -1460,6 +1768,14 @@ const App: React.FC = () => {
                                 <p className="text-neutral-400" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>
                                   is at <span className="text-white font-medium">{player.activeNotification.location}</span>
                                 </p>
+                              </div>
+                            ) : player.activeNotification.event === 'chat' ? (
+                              <div className="flex flex-col">
+                                <p className="text-neutral-200">{player.activeNotification.text}</p>
+                              </div>
+                            ) : (player.activeNotification.event === 'goal' || player.activeNotification.event === 'release' || player.activeNotification.event === 'collect') ? (
+                              <div className="flex flex-col bg-yellow-500/10 p-1 rounded border border-yellow-500/20">
+                                <p className="text-yellow-100 font-semibold">{player.activeNotification.text}</p>
                               </div>
                             ) : player.activeNotification.from === player.activeNotification.to ? (
                               <p>Found <span className={cn("font-bold", getItemColor(player.activeNotification.class))}>{player.activeNotification.item}</span></p>
@@ -1539,7 +1855,9 @@ const App: React.FC = () => {
                   style={{ 
                     backgroundColor: `${notifColor}${Math.floor(bgOpacity * 2.55).toString(16).padStart(2, '0')}`,
                     padding: `${notifPadding}px`,
-                    gap: `${notifPadding}px`
+                    gap: `${notifPadding}px`,
+                    width: (isStreamMode && notifWidthMode === 'fixed') ? `${notifWidth}px` : 'auto',
+                    maxWidth: isStreamMode ? `${notifWidth}px` : undefined
                   }} 
                 >
                 {((isStreamMode ? isCustomModeOBS : isCustomModeOverlay) && (notif.event === 'receive' || notif.event === 'send')) ? (
@@ -1613,13 +1931,17 @@ const App: React.FC = () => {
                       ) : (
                         <Info style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-sky-400" />
                       )
+                    ) : notif.event === 'chat' ? (
+                      <MessageSquare style={{ width: `${avatarSize * 0.45}px`, height: `${avatarSize * 0.45}px` }} className="text-sky-400" />
+                    ) : (notif.event === 'goal' || notif.event === 'release' || notif.event === 'collect') ? (
+                      <Trophy style={{ width: `${avatarSize * 0.45}px`, height: `${avatarSize * 0.45}px` }} className="text-yellow-400 animate-pulse" />
                     ) : (
                       <Info style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-blue-400" />
                     )}
                   </div>
                 )}
                 
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 min-w-0 overflow-hidden">
                   {(showEventLabel || showTimestamp) && (
                     <div className={cn(
                       "flex justify-between items-center mb-1",
@@ -1629,18 +1951,26 @@ const App: React.FC = () => {
                         <span className="font-bold uppercase tracking-widest text-neutral-500" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>
                           {notif.event === 'hint' 
                             ? 'Item Hint'
-                            : ((notif.event === 'receive' || notif.event === 'send') 
-                              ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
-                              : 'System Message')}
+                            : notif.event === 'chat'
+                              ? 'Chat Message'
+                              : notif.event === 'goal'
+                                ? 'Goal Completion'
+                                : notif.event === 'release'
+                                  ? 'Item Release'
+                                  : notif.event === 'collect'
+                                    ? 'Item Collection'
+                                    : ((notif.event === 'receive' || notif.event === 'send') 
+                                      ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
+                                      : 'System Message')}
                         </span>
                       )}
                       {showTimestamp && <span className="text-neutral-600" style={{ fontSize: `${Math.max(8, textSize - 4)}px` }}>{notif.timestamp}</span>}
                     </div>
                   )}
                   
-                  <div className="leading-tight font-medium" style={{ fontSize: `${textSize}px` }}>
+                  <div className="leading-tight font-medium min-w-0 w-full" style={{ fontSize: `${textSize}px` }}>
                     {(notif.event === 'receive' || notif.event === 'send') && (
-                      <p>
+                      <p style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                         {notif.from === notif.to ? (
                           <><span className="text-accent-prog font-bold">{notif.from}</span> found <span className={cn("font-bold", getItemColor(notif.class))}>{notif.item}</span></>
                         ) : (
@@ -1649,25 +1979,33 @@ const App: React.FC = () => {
                       </p>
                     )}
                     {(notif.event === 'receive' || notif.event === 'send') && showLocations && notif.location && (
-                      <p className="text-neutral-400 italic mt-1" style={{ fontSize: `${Math.max(9, textSize - 4)}px` }}>
+                      <p className="text-neutral-400 italic mt-1" style={{ fontSize: `${Math.max(9, textSize - 4)}px`, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                         at <span className="text-neutral-200 font-medium not-italic">{notif.location}</span>
                       </p>
                     )}
                     {notif.event === 'hint' && (
                       <div className="space-y-1">
-                        <p>
+                        <p style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           <span className="text-accent-prog font-bold">{notif.owner}</span>'s <span className="text-accent-junk font-bold">{notif.item}</span>
                         </p>
-                        <p className="text-neutral-400" style={{ fontSize: `${Math.max(10, textSize - 3)}px` }}>
+                        <p className="text-neutral-400" style={{ fontSize: `${Math.max(10, textSize - 3)}px`, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           is at <span className="text-white font-medium">{notif.location}</span>
                         </p>
-                        <p className="text-neutral-500 italic" style={{ fontSize: `${Math.max(8, textSize - 5)}px` }}>
+                        <p className="text-neutral-500 italic" style={{ fontSize: `${Math.max(8, textSize - 5)}px`, wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                           (<span className="text-sky-400 font-bold not-italic">{notif.finder}</span>) {notif.found && <span className="text-accent-useful ml-1">✓</span>}
                         </p>
                       </div>
                     )}
-                    {(notif.event === 'normal' || notif.event === 'error') && (
-                      <p className={notif.event === 'error' ? 'text-red-400' : 'text-neutral-200'}>{notif.text}</p>
+                    {(notif.event === 'normal' || notif.event === 'error' || notif.event === 'chat' || notif.event === 'goal' || notif.event === 'release' || notif.event === 'collect') && (
+                      <p 
+                        className={cn(
+                          "break-words whitespace-pre-wrap w-full",
+                          notif.event === 'error' && 'text-red-400',
+                          (notif.event === 'goal' || notif.event === 'release' || notif.event === 'collect') && 'text-yellow-100 font-bold',
+                          (notif.event !== 'error' && notif.event !== 'goal' && notif.event !== 'release' && notif.event !== 'collect') && 'text-neutral-200'
+                        )}
+                        style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                      >{notif.text}</p>
                     )}
                   </div>
                 </div>
@@ -1683,8 +2021,9 @@ const App: React.FC = () => {
       {!isStreamMode && (
         <div className={cn(
           "fixed right-0 top-0 bottom-0 w-80 backdrop-blur-3xl border-l border-white/5 p-6 flex flex-col gap-6 transition-transform duration-500 z-50",
-          !showHistory && "translate-x-full"
+          showHistory ? "pointer-events-auto" : "translate-x-full pointer-events-none"
         )}
+        data-clickable
         style={{ backgroundColor: `rgba(23, 23, 23, ${bgOpacity / 100})` }}
         >
           <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-2">
@@ -1694,7 +2033,7 @@ const App: React.FC = () => {
             <div className="flex gap-2">
               <button 
                 onClick={sendTestNotification} 
-                className="text-[10px] text-neutral-500 hover:text-accent-prog transition-colors uppercase tracking-widest mr-2"
+                className="text-[10px] text-neutral-500 hover:text-ui-accent transition-colors uppercase tracking-widest mr-2"
               >
                 Test
               </button>
@@ -1809,7 +2148,7 @@ const App: React.FC = () => {
                               </span>
                               <div className="flex gap-1">
                                 {disp.isPrimary && (
-                                  <span className="text-[9px] bg-accent-prog/20 text-accent-prog px-1.5 py-0.5 rounded border border-accent-prog/30 uppercase font-bold">
+                                  <span className="text-[9px] bg-ui-accent/20 text-ui-accent px-1.5 py-0.5 rounded border border-ui-accent/30 uppercase font-bold">
                                     Primary
                                   </span>
                                 )}
@@ -1829,7 +2168,7 @@ const App: React.FC = () => {
                 {activeTab === 'settings' && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="h-4 w-1 bg-accent-prog rounded-full" />
+                      <div className="h-4 w-1 bg-ui-accent rounded-full" />
                       <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Settings</h3>
                     </div>
                     
@@ -1837,13 +2176,13 @@ const App: React.FC = () => {
                       <div className="space-y-3">
                         <div className="space-y-1">
                           <div className="flex justify-between text-[9px] uppercase font-bold">
-                            <span className="text-accent-prog">Overlay Duration</span>
+                            <span className="text-ui-accent">Overlay Duration</span>
                             <span>{overlayDuration}s</span>
                           </div>
                           <input 
                             type="range" min="3" max="60" value={overlayDuration} 
                             onChange={(e) => updateTiming('overlay_duration', parseInt(e.target.value))}
-                            className="w-full accent-accent-prog h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            className="w-full accent-ui-accent h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                           />
                         </div>
 
@@ -1907,7 +2246,7 @@ const App: React.FC = () => {
                           onClick={() => setSoundSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
                           className={cn(
                             "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
-                            soundSettings.enabled ? "bg-accent-prog" : "bg-neutral-800"
+                            soundSettings.enabled ? "bg-ui-accent" : "bg-neutral-800"
                           )}
                         >
                           <div className={cn(
@@ -1931,7 +2270,7 @@ const App: React.FC = () => {
                             <input 
                               type="range" min="0" max="100" value={soundSettings.volume} 
                               onChange={(e) => setSoundSettings(prev => ({ ...prev, volume: parseInt(e.target.value) }))}
-                              className="w-full accent-accent-prog h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                              className="w-full accent-ui-accent h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                             />
                           </div>
 
@@ -1943,6 +2282,8 @@ const App: React.FC = () => {
                               { key: 'junk', label: 'Junk Items', color: 'text-accent-junk' },
                               { key: 'trap', label: 'Trap Items', color: 'text-accent-trap' },
                               { key: 'hint', label: 'Item Hints', color: 'text-sky-400' },
+                              { key: 'chat', label: 'Chat Messages', color: 'text-sky-300' },
+                              { key: 'goal', label: 'Goal Completions', color: 'text-yellow-400' },
                               { key: 'other', label: 'Sent / Other', color: 'text-neutral-300' }
                             ] as const).map(cat => {
                               const config = soundSettings.categories[cat.key] || { enabled: true, mode: 'synth' };
@@ -1954,7 +2295,7 @@ const App: React.FC = () => {
                                         type="checkbox" 
                                         checked={config.enabled}
                                         onChange={() => handleCategorySoundToggle(cat.key)}
-                                        className="w-3 h-3 rounded bg-black/40 border border-white/10 accent-accent-prog"
+                                        className="w-3 h-3 rounded bg-black/40 border border-white/10 accent-ui-accent"
                                       />
                                       <span className={cn("text-[10px] font-bold group-hover:text-white transition-colors", cat.color)}>
                                         {cat.label}
@@ -2011,7 +2352,7 @@ const App: React.FC = () => {
                                             }
                                           }));
                                         }}
-                                        className="w-full accent-accent-prog h-0.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                        className="w-full accent-ui-accent h-0.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
                                       />
                                     </div>
                                   )}
@@ -2075,7 +2416,7 @@ const App: React.FC = () => {
                           onClick={() => setShowHints(!showHints)}
                           className={cn(
                             "w-8 h-4 rounded-full relative transition-colors duration-200",
-                            showHints ? "bg-accent-prog" : "bg-neutral-800"
+                            showHints ? "bg-ui-accent" : "bg-neutral-800"
                           )}
                         >
                           <div className={cn(
@@ -2092,7 +2433,7 @@ const App: React.FC = () => {
                               <span className="text-[9px] uppercase font-bold text-neutral-500">Request Hint</span>
                               <div className="flex flex-col items-end">
                                 <div className="text-[9px] font-mono text-neutral-400">
-                                  Points: <span className={hintPoints >= hintCost ? "text-accent-prog" : "text-amber-400"}>{hintPoints}</span> / {hintCost}
+                                  Points: <span className={hintPoints >= hintCost ? "text-ui-accent" : "text-amber-400"}>{hintPoints}</span> / {hintCost}
                                 </div>
                                 {hintPoints < hintCost && hintCost > 0 && (
                                   <div className="text-[7px] text-neutral-500 italic">
@@ -2109,7 +2450,7 @@ const App: React.FC = () => {
                                   onChange={(e) => setHintInput(e.target.value)}
                                   onKeyDown={(e) => e.key === 'Enter' && requestHint()}
                                   placeholder="Item name..."
-                                  className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-accent-prog transition-colors"
+                                  className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-ui-accent transition-colors"
                                 />
                                 <button 
                                   onClick={requestHint}
@@ -2117,7 +2458,7 @@ const App: React.FC = () => {
                                   className={cn(
                                     "transition-all duration-300 text-[10px] font-bold px-3 py-1 rounded flex items-center gap-1",
                                     hintPoints >= hintCost 
-                                      ? "bg-accent-prog text-black hover:bg-accent-prog/80 shadow-[0_0_10px_rgba(175,153,239,0.3)]" 
+                                      ? "bg-ui-accent text-black hover:bg-ui-accent/80 shadow-[0_0_10px_rgba(175,153,239,0.3)]" 
                                       : "bg-neutral-800 text-neutral-500 cursor-not-allowed border border-white/5 opacity-50"
                                   )}
                                 >
@@ -2210,7 +2551,7 @@ const App: React.FC = () => {
                                   <div className="flex items-start gap-3">
                                     <div className={cn(
                                       "w-1.5 h-5 rounded-full shrink-0 mt-0.5",
-                                      hint.found ? "bg-emerald-500" : "bg-accent-prog"
+                                      hint.found ? "bg-emerald-500" : "bg-ui-accent"
                                     )} />
                                     <h4 className={cn(
                                       "text-[14px] font-bold leading-tight",
@@ -2276,7 +2617,7 @@ const App: React.FC = () => {
                               className={cn(
                                 "text-[9px] py-1 rounded border uppercase font-bold transition-all",
                                 overlayMode === m 
-                                  ? "bg-accent-prog/20 border-accent-prog text-accent-prog shadow-[0_0_8px_rgba(175,153,239,0.3)]" 
+                                  ? "bg-ui-accent/20 border-ui-accent text-ui-accent shadow-[0_0_8px_rgba(175,153,239,0.3)]" 
                                   : "bg-black/20 border-white/5 text-neutral-600 hover:text-neutral-400"
                               )}
                             >
@@ -2363,6 +2704,82 @@ const App: React.FC = () => {
                           )} />
                         </button>
                       </div>
+
+                      <div className="flex justify-between items-center border-t border-white/5 pt-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400">Show Chat Popups</span>
+                          <span className="text-[8px] text-neutral-500 lowercase italic">Display messages sent by players</span>
+                        </div>
+                        <button 
+                          onClick={() => setShowChatPopups(prev => !prev)}
+                          className={cn(
+                            "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                            showChatPopups ? "bg-accent-useful" : "bg-neutral-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                            showChatPopups ? "left-4.5" : "left-0.5"
+                          )} />
+                        </button>
+                      </div>
+
+                      <div className="flex justify-between items-center border-t border-white/5 pt-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400">Show Goal Popups</span>
+                          <span className="text-[8px] text-neutral-500 lowercase italic">Display when players complete goals</span>
+                        </div>
+                        <button 
+                          onClick={() => setShowGoalPopups(prev => !prev)}
+                          className={cn(
+                            "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                            showGoalPopups ? "bg-accent-useful" : "bg-neutral-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                            showGoalPopups ? "left-4.5" : "left-0.5"
+                          )} />
+                        </button>
+                      </div>
+
+                      <div className="flex justify-between items-center border-t border-white/5 pt-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400">Filter Chat & Goals</span>
+                          <span className="text-[8px] text-neutral-500 lowercase italic">Apply sync filters (personal/filtered) to chat/goals</span>
+                        </div>
+                        <button 
+                          onClick={() => setFilterChatAndGoals(prev => !prev)}
+                          className={cn(
+                            "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                            filterChatAndGoals ? "bg-accent-useful" : "bg-neutral-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                            filterChatAndGoals ? "left-4.5" : "left-0.5"
+                          )} />
+                        </button>
+                      </div>
+
+                      <div className="flex justify-between items-center border-t border-white/5 pt-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400">Show Server Popups</span>
+                          <span className="text-[8px] text-neutral-500 lowercase italic">Display connection and error messages</span>
+                        </div>
+                        <button 
+                          onClick={() => setShowServerPopups(prev => !prev)}
+                          className={cn(
+                            "w-8 h-4 rounded-full relative transition-colors duration-200 shrink-0",
+                            showServerPopups ? "bg-accent-useful" : "bg-neutral-800"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all duration-200",
+                            showServerPopups ? "left-4.5" : "left-0.5"
+                          )} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Players Selection */}
@@ -2412,7 +2829,7 @@ const App: React.FC = () => {
                         {/* Main Viewer Selection */}
                         {(overlayMode !== 'filtered' || obsMode !== 'filtered') && (
                           <div className="space-y-3">
-                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-accent-prog">
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-ui-accent">
                               Main Player Selection
                             </h4>
                             <div className="flex flex-wrap gap-1.5">
@@ -2425,7 +2842,7 @@ const App: React.FC = () => {
                                     className={cn(
                                       "text-[10px] px-2 py-1 rounded-md border transition-all truncate max-w-[120px]",
                                       isCurrent 
-                                        ? "bg-accent-prog/20 border-accent-prog text-accent-prog font-bold shadow-[0_0_10px_rgba(175,153,239,0.2)]" 
+                                        ? "bg-ui-accent/20 border-ui-accent text-ui-accent font-bold shadow-[0_0_10px_rgba(175,153,239,0.2)]" 
                                         : "bg-white/5 border-white/10 text-neutral-400 hover:border-white/20"
                                     )}
                                   >
@@ -2855,7 +3272,43 @@ const App: React.FC = () => {
                               className="w-6 h-4 bg-transparent border-0 cursor-pointer p-0"
                             />
                           </div>
+
+                          <div className="flex items-center gap-1.5 bg-black/20 p-1.5 rounded-lg border border-white/5">
+                            <span className="text-[9px] uppercase font-bold text-neutral-500 px-1">OBS Width Mode</span>
+                            <button
+                              onClick={() => {
+                                const newMode = notifWidthMode === 'auto' ? 'fixed' : 'auto';
+                                setNotifWidthMode(newMode);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', notif_width_mode: newMode }));
+                                }
+                              }}
+                              className="text-[9px] font-bold px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white border border-white/10 uppercase cursor-pointer"
+                            >
+                              {notifWidthMode}
+                            </button>
+                          </div>
                         </div>
+
+                        {notifWidthMode === 'fixed' && (
+                          <div className="space-y-1 pt-3 border-t border-white/5 animate-in fade-in slide-in-from-top-1">
+                            <div className="flex justify-between text-[9px] uppercase font-bold text-neutral-400">
+                              <span>OBS Width Size</span>
+                              <span className="text-pink-400">{notifWidth}px</span>
+                            </div>
+                            <input 
+                              type="range" min="200" max="600" value={notifWidth} 
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setNotifWidth(val);
+                                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                                  socketRef.current.send(JSON.stringify({ type: 'update_avatar_data', notif_width: val }));
+                                }
+                              }}
+                              className="w-full accent-pink-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                            />
+                          </div>
+                        )}
 
                         <div className="space-y-2">
                           <div className="text-[9px] uppercase font-bold text-neutral-400">Layout Mode</div>
@@ -3002,7 +3455,7 @@ const App: React.FC = () => {
                   onClick={() => setShowDebug(!showDebug)} 
                   className={cn(
                     "text-[9px] px-2 py-0.5 rounded border transition-colors uppercase tracking-widest font-bold",
-                    showDebug ? "bg-accent-prog/20 border-accent-prog text-accent-prog" : "border-white/10 text-neutral-600 hover:text-neutral-400"
+                    showDebug ? "bg-ui-accent/20 border-ui-accent text-ui-accent" : "border-white/10 text-neutral-600 hover:text-neutral-400"
                   )}
                 >
                   Debug
@@ -3066,30 +3519,33 @@ const App: React.FC = () => {
       {/* Single Draggable Toggle Button - Positioned at the bottom with flip logic */}
       {!isStreamMode && (
         <div 
+          data-clickable
           className={cn(
-            "fixed bottom-6 flex items-center transition-all duration-500 z-[60]",
+            "fixed bottom-2 flex items-center transition-all duration-500 z-[60] pointer-events-auto p-4 select-none",
             // Flip to right side if the window is pushed too far left
-            isFlipped ? "right-6 left-auto" : "left-6 right-auto"
+            isFlipped ? "right-2 left-auto" : "left-2 right-auto"
           )}
-          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
-          {/* This outer div is the designated drag handle */}
-          <div className="p-0.5 bg-neutral-900/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl flex items-center group cursor-move hover:bg-neutral-800 transition-colors">
+          {/* This pill is the designated drag handle */}
+          <div 
+            onMouseDown={handleDragMouseDown}
+            title="Cliquez sur l'icône pour les paramètres / Glissez pour déplacer"
+            className="p-0.5 bg-neutral-900/80 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl flex items-center group cursor-grab active:cursor-grabbing hover:bg-neutral-800 hover:border-white/20 transition-all"
+          >
             <button 
               onClick={(e) => {
                 e.stopPropagation();
                 setShowHistory(!showHistory);
               }}
-              title="Click icon for History / Drag the border to move"
-              style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-              className="p-[14px] bg-white/5 hover:bg-white/10 rounded-full transition-all relative flex items-center justify-center"
+              title="Paramètres / Historique"
+              className="p-[14px] bg-white/5 hover:bg-white/10 rounded-full transition-all relative flex items-center justify-center cursor-pointer"
             >
               <Monitor className="w-[22px] h-[22px] text-neutral-400 group-hover:text-white" />
               {!isConnected && <div className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-neutral-900 animate-pulse" />}
             </button>
             
             {/* Minimalist grip handle for extra drag area */}
-            <div className="pr-2.5 pl-0.5 text-neutral-600 group-hover:text-neutral-400 transition-colors">
+            <div className="pr-2.5 pl-0.5 text-neutral-500 group-hover:text-neutral-300 transition-colors cursor-grab active:cursor-grabbing">
               <GripVertical className="w-4 h-4" />
             </div>
           </div>

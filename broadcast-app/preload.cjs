@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electron', {
   getWindowBounds: () => ipcRenderer.invoke('get-window-bounds'),
   closeApp: () => ipcRenderer.send('close-app'),
   setDisplay: (index) => ipcRenderer.send('set-display', index),
+  setIgnoreMouseEvents: (ignore, opts) => ipcRenderer.send('set-ignore-mouse-events', ignore, opts),
+  setWindowPosition: (x, y) => ipcRenderer.send('set-window-position', x, y),
   onDisplaysUpdated: (callback) => {
     const listener = (_event, displays) => callback(displays);
     ipcRenderer.on('displays-updated', listener);

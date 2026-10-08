@@ -10,7 +10,7 @@ import logging
 logging.getLogger('websockets.server').setLevel(logging.CRITICAL)
 
 # --- Archipelago Constants ---
-AP_VERSION = {"major": 0, "minor": 6, "build": 7, "class": "Version"}
+AP_VERSION = {"major": 0, "minor": 6, "build": 8, "class": "Version"}
 
 # OPTIMIZATION: Set low priority for this process to not impact the game
 import platform
@@ -93,6 +93,8 @@ async def register_ui(websocket):
             "notif_color": avatar_settings.get("notif_color", "#171717"),
             "notif_layout": avatar_settings.get("notif_layout", "standard"),
             "notif_padding": avatar_settings.get("notif_padding", 12),
+            "notif_width_mode": avatar_settings.get("notif_width_mode", "auto"),
+            "notif_width": avatar_settings.get("notif_width", 384),
             "use_grid_popup_overlay": avatar_settings.get("use_grid_popup_overlay", False),
             "use_grid_popup_obs": avatar_settings.get("use_grid_popup_obs", False),
             "grid_max_people": avatar_settings.get("grid_max_people", 5),
@@ -171,7 +173,8 @@ async def register_ui(websocket):
                                 "avatar_size", "text_size", "show_timestamp", "show_event_label", "notif_color", "notif_layout", "notif_padding",
                                 "use_grid_popup_overlay", "use_grid_popup_obs", "grid_max_people",
                                 "grid_layout_overlay", "grid_layout_obs",
-                                "single_bubble_focus", "overlay_position", "obs_position"]
+                                "single_bubble_focus", "overlay_position", "obs_position",
+                                "notif_width_mode", "notif_width"]
                         for k in keys:
                             if k in data: avatar_settings[k] = data[k]
                         
@@ -430,13 +433,24 @@ class ArchipelagoClient:
                 if self.switching_slot: break
                 print(f"Connecting to {url}...", flush=True)
                 try:
+                    ssl_context = None
+                    if url.startswith("wss://"):
+                        import ssl
+                        if hasattr(ssl, "_create_unverified_context"):
+                            ssl_context = ssl._create_unverified_context()
+                        else:
+                            ssl_context = ssl.create_default_context()
+                            ssl_context.check_hostname = False
+                            ssl_context.verify_mode = ssl.CERT_NONE
+
                     # increase max_size and use longer timeouts for large DataPackages
                     async with websockets.connect(
                         url, 
                         origin="http://localhost", 
                         ping_interval=30, 
                         ping_timeout=30, 
-                        max_size=None
+                        max_size=None,
+                        ssl=ssl_context
                     ) as ws:
                         print(f"Connected to {url}!", flush=True)
                         self.ws = ws
@@ -476,9 +490,6 @@ class ArchipelagoClient:
 
     async def listen(self):
         try:
-            # Request DataPackage only once at the start of the session
-            await self.ws.send(json.dumps([{"cmd": "GetDataPackage"}]))
-            
             async for message in self.ws:
                 packets = json.loads(message)
                 for packet in packets:
@@ -493,6 +504,10 @@ class ArchipelagoClient:
                         self.available_games = packet.get("games", [])
                         self.hint_cost = packet.get("hint_cost", 0)
                         await broadcast_to_ui({"type": "hint_stats", "points": self.hint_points, "cost": self.hint_cost})
+                        
+                        # Request DataPackage with games list (required by AP 0.6.8+)
+                        if self.available_games:
+                            await self.ws.send(json.dumps([{"cmd": "GetDataPackage", "games": self.available_games}]))
                         
                         # Priority 1: Cache for this specific slot name (Most accurate)
                         # Priority 2: Hint from command line (Global last successful)
@@ -805,6 +820,59 @@ class ArchipelagoClient:
                 "owner": p_owner,
                 "finder": p_finder,
                 "found": found,
+                "raw_data": packet
+            })
+            return
+
+        elif msg_type in ["Chat", "ServerChat", "Goal", "Release", "Collect"]:
+            message_text = ""
+            sender_name = "Someone"
+            for part in parts:
+                p_type = part.get("type")
+                text = part.get("text", "")
+                if p_type == "player_id":
+                    translated = self.player_names.get(str(text), text)
+                    message_text += translated
+                    if sender_name == "Someone":
+                        sender_name = translated
+                elif p_type == "item_id":
+                    target_player_id = str(part.get("player", ""))
+                    target_game = self.slot_to_game.get(target_player_id)
+                    item_name = ""
+                    if target_game and target_game in self.item_maps:
+                        item_name = self.item_maps[target_game].get(text)
+                    message_text += item_name if item_name else text
+                elif p_type == "location_id":
+                    finder_id = str(part.get("player", ""))
+                    finder_game = self.slot_to_game.get(finder_id)
+                    location_name = ""
+                    if finder_game and finder_game in self.location_maps:
+                        location_name = self.location_maps[finder_game].get(text)
+                    message_text += location_name if location_name else text
+                else:
+                    message_text += text
+
+            packet_slot = packet.get("slot")
+            if packet_slot and sender_name == "Someone":
+                sender_name = self.player_names.get(str(packet_slot), "Someone")
+
+            if msg_type == "Goal":
+                event = "goal"
+            elif msg_type == "Release":
+                event = "release"
+            elif msg_type == "Collect":
+                event = "collect"
+            else:
+                event = "chat"
+            
+            await broadcast_to_ui({
+                "type": "notification",
+                "event": event,
+                "text": message_text,
+                "from": sender_name,
+                "to": sender_name,
+                "is_mine": (sender_name == self.my_alias),
+                "my_alias": self.my_alias,
                 "raw_data": packet
             })
             return

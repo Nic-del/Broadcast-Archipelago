@@ -1,0 +1,152 @@
+/* ==============================================================================
+   BROADCAST ARCHIPELAGO - CUSTOM CSS TEMPLATE / EXEMPLE DE CSS PERSONNALISÉ
+   ==============================================================================
+   
+   HOW TO USE / COMMENT L'UTILISER :
+   1. English: Rename or copy this file to "custom.css" (next to BroadCast-Archipelago.pyw).
+      Customize the rules below, save, and restart the overlay.
+   2. Français: Renommez ou copiez ce fichier en "custom.css" (à côté de BroadCast-Archipelago.pyw).
+      Modifiez les règles souhaitées, enregistrez et relancez l'overlay.
+   
+   NOTE: You only need to keep the rules you want to change!
+   NOTE: Vous n'avez besoin de garder que les règles que vous voulez modifier !
+   ============================================================================== */
+
+/* ==============================================================================
+   1. COULEURS DES OBJETS & BORDURES / ITEM & BORDER ACCENT COLORS
+   ============================================================================== */
+:root {
+  /* Progression items (border, item text, glow) / Objets de progression */
+  /* Default: #af99ef (Purple / Violet) */
+  --color-accent-prog: #af99ef;
+
+  /* Useful items (border, item text, glow) / Objets utiles */
+  /* Default: #6d8be8 (Blue / Bleu) */
+  --color-accent-useful: #6d8be8;
+
+  /* Junk / Filler items (border, item text, glow) / Objets de remplissage */
+  /* Default: #00eeee (Aqua / Cyan) */
+  --color-accent-junk: #00eeee;
+
+  /* Trap items (border, item text, glow) / Pièges */
+  /* Default: #ff7700 (Orange) */
+  --color-accent-trap: #ff7700;
+
+  /* Filtered items / Objets filtrés */
+  /* Default: #f59e0b (Amber / Ambre) */
+  --color-accent-filtered: #f59e0b;
+
+  /* Settings Panel & UI Controls (sliders, switches, buttons) / Interface des paramètres */
+  /* Default: #af99ef (Purple / Violet) */
+  --color-ui-accent: #af99ef;
+}
+
+/* ASTUCE / TIP:
+   Si vous voulez changer UNIQUEMENT les bordures des notifications sans modifier le texte ou l'UI :
+   If you want to change ONLY the notification borders without changing item text or UI:
+   
+   .border-accent-prog { border-color: rgb(0, 255, 34) !important; }
+   .border-accent-useful { border-color: #6d8be8 !important; }
+   .border-accent-junk { border-color: #00eeee !important; }
+   .border-accent-trap { border-color: #ff7700 !important; }
+*/
+
+
+/* ==============================================================================
+   2. STYLE DES RECTANGLES / NOTIFICATION CARDS APPEARANCE
+   ============================================================================== */
+
+/* -- Arrondi des cartes / Corner roundness -- */
+/* Par défaut: 0.75rem (12px). Mettez 0px pour un look rétro carré, ou 9999px pour une pilule. */
+/* Default is rounded. Set to 0px for sharp retro corners or higher for pill shape. */
+/*
+.rounded-xl {
+  border-radius: 4px !important;
+}
+*/
+
+/* -- Épaisseur des bordures / Border thickness -- */
+/*
+.backdrop-blur-xl {
+  border-width: 2px !important;
+}
+*/
+
+/* -- Effet de lueur prononcé (Glow) sur les bordures / Strong glowing borders -- */
+/*
+.border-accent-prog {
+  box-shadow: 0 0 15px rgba(175, 153, 239, 0.6) !important;
+}
+.border-accent-useful {
+  box-shadow: 0 0 15px rgba(109, 139, 232, 0.6) !important;
+}
+.border-accent-junk {
+  box-shadow: 0 0 15px rgba(0, 238, 238, 0.6) !important;
+}
+.border-accent-trap {
+  box-shadow: 0 0 15px rgba(255, 119, 0, 0.6) !important;
+}
+*/
+
+
+/* ==============================================================================
+   3. POLICE D'ÉCRITURE / CUSTOM FONT & TYPOGRAPHY
+   ============================================================================== */
+
+/* Décommentez pour importer une police Google Fonts (ex: Press Start 2P pour un look rétro) */
+/* Uncomment below to import a Google Font (e.g. Press Start 2P for retro pixel art) */
+/*
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+body, span, p, h2, div {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 11px !important;
+}
+*/
+
+
+/* ==============================================================================
+   4. AVATARS DES JOUEURS / PLAYER AVATARS
+   ============================================================================== */
+
+/* Rendre les avatars parfaitement ronds au lieu de carrés arrondis */
+/* Make player avatars circular instead of rounded squares */
+/*
+img[alt], .bg-white\/5 {
+  border-radius: 50% !important;
+}
+*/
+
+
+/* ==============================================================================
+   5. LISIBILITÉ DU TEXTE / TEXT READABILITY (SHADOWS)
+   ============================================================================== */
+
+/* Ombre noire sous tout le texte pour une lecture facile sur fond de jeu très clair */
+/* Strong text shadow for high contrast on bright game backgrounds */
+/*
+p, span {
+  text-shadow: 1px 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.9) !important;
+}
+*/
+
+
+/* ==============================================================================
+   6. MODE MINIMALISTE / MINIMALIST OBS STREAM OVERLAY
+   ============================================================================== */
+
+/* Masquer le bouton de déplacement / launcher (icône écran en bas) */
+/* Hide the bottom draggable launcher pill entirely */
+/*
+[data-clickable].fixed.bottom-2 {
+  display: none !important;
+}
+*/
+
+/* Masquer le libellé de l'événement ("ITEM FOUND", "ITEM SENT", "ITEM HINT") */
+/* Hide the event type label header */
+/*
+.uppercase.tracking-widest {
+  display: none !important;
+}
+*/

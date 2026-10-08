@@ -9,7 +9,23 @@
 
 ---
 
-## ✨ Latest Features (v1.1.1)
+## ✨ Latest Features (v1.2.0)
+
+### 🖱️ True Transparent Click-Through
+- **Zero Click Interference**: Empty and transparent areas of the overlay now pass mouse clicks directly through to your game, tracker, or desktop underneath. No more invisible window blocking your mouse!
+- **Smart Mouse Capture**: Interactive elements (launcher button, settings panel) automatically capture mouse events when hovered.
+- **Direct Drag & Move**: Grab and move the overlay smoothly by holding the grip handle directly, without needing to hover or click on the launcher button first.
+
+### ⚡ Optimized Game Data Retrieval (DataPackage & WSS)
+- **Targeted DataPackage**: The bridge now queries `GetDataPackage` with the specific list of active games (`{"cmd": "GetDataPackage", "games": ...}`), drastically reducing network payload and ensuring compatibility with Archipelago 0.5.x and 0.6.x+ servers.
+- **Secure WebSockets (WSS)**: Added robust SSL/TLS support for secure server connections (`wss://`).
+
+### 🎨 External Custom CSS Theming (`custom.css`)
+- **Effortless Styling**: Customize notification colors (Progression, Useful, Junk, Trap), borders, glowing effects, and fonts by placing a `custom.css` file next to the launcher (template provided in `custom.example.css`). No rebuild required!
+
+---
+
+## 🌟 Previous Features (v1.1.1)
 
 ### 🖼️ Custom Avatars & Friends Library
 - **Player Avatars**: Personalize your notifications by uploading custom images for each player.

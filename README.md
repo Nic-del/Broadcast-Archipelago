@@ -110,7 +110,16 @@ This edition is fully optimized for Linux distributions, including immutable sys
 
 
 ### 📺 OBS Integration
-- **Browser Source URL**: `http://localhost:5173/?view=obs`
+- **Default Browser Source URL**: `http://localhost:5173/?view=obs`
+- **Specific Player Filter (Multi-POV / Tournament / Restream)**:
+  - Add `&player=PlayerName` to display only events for a specific player:
+    ```
+    http://localhost:5173/?view=obs&player=PlayerName
+    ```
+  - **Multi-Player / Duo Team Filter**: You can also filter for multiple players separated by commas:
+    ```
+    http://localhost:5173/?view=obs&player=Player1,Player2
+    ```
 - **Recommended Size**: 400x600 (or match your Overlay dimensions)
 ---
 

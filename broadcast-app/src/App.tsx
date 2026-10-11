@@ -57,27 +57,46 @@ interface DisplayInfo {
 }
 
 const App: React.FC = () => {
-  // Detect View Mode and Sync Mode from URL
-  const { isStreamMode, syncMode } = useMemo(() => {
+  // Detect View Mode, Sync Mode, and Target Player(s) from URL
+  const { isStreamMode, syncMode, targetPlayers, targetPlayer } = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     const isElectron = !!(window as any).electron;
+    const playerParam = params.get('player') || params.get('players') || params.get('slot') || '';
+    const parsedPlayers = playerParam
+      .split(',')
+      .map(p => p.trim())
+      .filter(Boolean);
     
     // Auto-detect OBS: If explicitly requested via URL OR if NOT running in Electron
     return {
       isStreamMode: params.get('view') === 'obs' || params.get('mode') === 'obs' || !isElectron,
-      syncMode: params.get('sync') || 'all'
+      syncMode: params.get('sync') || (parsedPlayers.length > 0 ? 'filtered' : 'all'),
+      targetPlayers: parsedPlayers,
+      targetPlayer: parsedPlayers.length > 0 ? parsedPlayers[0] : null
     };
   }, []);
 
   const [notifications, setNotifications] = useState<GameNotification[]>(() => {
     if (isStreamMode) {
       try {
-        const saved = localStorage.getItem('broadcast_history');
+        const historyKey = (targetPlayers.length > 0)
+          ? `broadcast_history_${targetPlayers[0].toLowerCase()}`
+          : 'broadcast_history';
+        const saved = localStorage.getItem(historyKey) || localStorage.getItem('broadcast_history');
         if (saved) {
           let parsed = JSON.parse(saved) as GameNotification[];
           
-          // Filter history based on sync mode if in OBS mode
-          if (syncMode === 'personal') {
+          // Filter history based on target player(s) or sync mode if in OBS mode
+          if (targetPlayers.length > 0) {
+            const tpLower = targetPlayers.map(p => p.toLowerCase());
+            parsed = parsed.filter(n => {
+              const f = n.from?.toLowerCase();
+              const t = n.to?.toLowerCase();
+              const finder = (n as any).finder?.toLowerCase();
+              const owner = (n as any).owner?.toLowerCase();
+              return tpLower.some(tp => tp === f || tp === t || tp === finder || tp === owner);
+            });
+          } else if (syncMode === 'personal') {
             parsed = parsed.filter(n => n.is_mine);
           } else if (syncMode === 'filtered') {
             const tracked = JSON.parse(localStorage.getItem('broadcast_tracked_players') || '[]');
@@ -99,12 +118,24 @@ const App: React.FC = () => {
   
   const [history, setHistory] = useState<GameNotification[]>(() => {
     try {
-      const saved = localStorage.getItem('broadcast_history');
+      const historyKey = (isStreamMode && targetPlayers.length > 0)
+        ? `broadcast_history_${targetPlayers[0].toLowerCase()}`
+        : 'broadcast_history';
+      const saved = localStorage.getItem(historyKey) || localStorage.getItem('broadcast_history');
       if (!saved) return [];
       let parsed = JSON.parse(saved) as GameNotification[];
       
-      // Filter history based on sync mode
-      if (syncMode === 'personal') {
+      // Filter history based on target player(s) or sync mode
+      if (targetPlayers.length > 0) {
+        const tpLower = targetPlayers.map(p => p.toLowerCase());
+        parsed = parsed.filter(n => {
+          const f = n.from?.toLowerCase();
+          const t = n.to?.toLowerCase();
+          const finder = (n as any).finder?.toLowerCase();
+          const owner = (n as any).owner?.toLowerCase();
+          return tpLower.some(tp => tp === f || tp === t || tp === finder || tp === owner);
+        });
+      } else if (syncMode === 'personal') {
         parsed = parsed.filter(n => n.is_mine);
       } else if (syncMode === 'filtered') {
         const tracked = JSON.parse(localStorage.getItem('broadcast_tracked_players') || '[]');
@@ -702,6 +733,7 @@ const App: React.FC = () => {
   const [persistentHints, setPersistentHints] = useState<any[]>([]);
   const [bridgeLogs, setBridgeLogs] = useState<string[]>([]);
   const syncModeRef = useRef<string>(syncMode);
+  const targetPlayersRef = useRef<string[]>(targetPlayers);
   const trackedPlayersRef = useRef<string[]>(trackedPlayers);
   const durationsRef = useRef({ overlay: 10, obs: 15, fade: false });
   const gridMaxPeopleRef = useRef<number>(gridMaxPeople);
@@ -955,10 +987,13 @@ const App: React.FC = () => {
             if (data.show_locations !== undefined) setShowLocations(data.show_locations);
 
             // Dynamic Mode Sync from Bridge
-            const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
-            if (remoteMode) {
-              console.log('Dynamic sync mode update:', remoteMode);
-              setCurrentSyncMode(remoteMode);
+            // If target players are specified in URL, do not override their sync mode
+            if (targetPlayersRef.current.length === 0) {
+              const remoteMode = isStreamMode ? data.obs_sync_mode : data.overlay_sync_mode;
+              if (remoteMode) {
+                console.log('Dynamic sync mode update:', remoteMode);
+                setCurrentSyncMode(remoteMode);
+              }
             }
             return;
           }
@@ -999,32 +1034,45 @@ const App: React.FC = () => {
               if (!showGoalPopupsRef.current) return;
             }
 
-            // Apply sync filtering using the REF to avoid stale closures
-            const mode = syncModeRef.current;
-            
-            // Bypass filters for test messages
-            if (data.is_test) {
-              // Continue processing
+            // TARGET PLAYER FILTERING (URL Parameter: ?player=... or ?slot=...)
+            if (targetPlayersRef.current.length > 0) {
+              const tpList = targetPlayersRef.current.map(p => p.toLowerCase());
+              const f = data.from?.toLowerCase();
+              const t = data.to?.toLowerCase();
+              const finder = data.finder?.toLowerCase();
+              const owner = data.owner?.toLowerCase();
+              const matches = tpList.some(tp => tp === f || tp === t || tp === finder || tp === owner);
+              if (!data.is_test && !matches) {
+                return;
+              }
             } else {
-              const isChatOrGoal = data.event === 'chat' || data.event === 'goal' || data.event === 'release' || data.event === 'collect';
-              const shouldFilter = !isChatOrGoal || filterChatAndGoalsRef.current;
+              // Apply sync filtering using the REF to avoid stale closures
+              const mode = syncModeRef.current;
+              
+              // Bypass filters for test messages
+              if (data.is_test) {
+                // Continue processing
+              } else {
+                const isChatOrGoal = data.event === 'chat' || data.event === 'goal' || data.event === 'release' || data.event === 'collect';
+                const shouldFilter = !isChatOrGoal || filterChatAndGoalsRef.current;
 
-              if (shouldFilter) {
-                // If filtering is enabled for chat/goals but the global sync mode is 'all',
-                // we treat it as 'filtered' (tracked players + self) so they actually get filtered.
-                const activeFilterMode = (isChatOrGoal && mode === 'all') ? 'filtered' : mode;
+                if (shouldFilter) {
+                  // If filtering is enabled for chat/goals but the global sync mode is 'all',
+                  // we treat it as 'filtered' (tracked players + self) so they actually get filtered.
+                  const activeFilterMode = (isChatOrGoal && mode === 'all') ? 'filtered' : mode;
 
-                if (activeFilterMode === 'personal' && !data.is_mine) {
-                  return;
-                }
-                if (activeFilterMode === 'filtered') {
-                  if (data.is_mine) {
-                    // Always show our own chats/goals
-                  } else {
-                    const isFromTracked = trackedPlayersRef.current.includes(data.from);
-                    const isToTracked = trackedPlayersRef.current.includes(data.to);
-                    if (!isFromTracked && !isToTracked) {
-                      return;
+                  if (activeFilterMode === 'personal' && !data.is_mine) {
+                    return;
+                  }
+                  if (activeFilterMode === 'filtered') {
+                    if (data.is_mine) {
+                      // Always show our own chats/goals
+                    } else {
+                      const isFromTracked = trackedPlayersRef.current.includes(data.from);
+                      const isToTracked = trackedPlayersRef.current.includes(data.to);
+                      if (!isFromTracked && !isToTracked) {
+                        return;
+                      }
                     }
                   }
                 }
@@ -1059,7 +1107,12 @@ const App: React.FC = () => {
 
             setHistory(prev => {
               const updated = [newNotif, ...prev].slice(0, 100);
-              localStorage.setItem('broadcast_history', JSON.stringify(updated));
+              if (isStreamMode && targetPlayersRef.current.length > 0) {
+                const key = `broadcast_history_${targetPlayersRef.current[0].toLowerCase()}`;
+                localStorage.setItem(key, JSON.stringify(updated));
+              } else {
+                localStorage.setItem('broadcast_history', JSON.stringify(updated));
+              }
               return updated;
             });
 
@@ -1850,7 +1903,7 @@ const App: React.FC = () => {
                     notifLayout === 'vertical' ? "flex-col items-center text-center" : (notifLayout === 'reversed' ? "flex-row-reverse" : "flex-row items-center"),
                     getAccentColor(notif.class),
                     notif.event === 'error' && "border-red-500 shadow-red-500/20",
-                    (notif.event === 'hint' && notif.finder?.toLowerCase() === currentPlayer?.toLowerCase()) && "border-[#c36e7a]/80 shadow-[#c36e7a]/30 ring-1 ring-[#c36e7a]/30"
+                    (notif.event === 'hint' && notif.finder?.toLowerCase() === (targetPlayer || currentPlayer)?.toLowerCase()) && "border-[#c36e7a]/80 shadow-[#c36e7a]/30 ring-1 ring-[#c36e7a]/30"
                   )}
                   style={{ 
                     backgroundColor: `${notifColor}${Math.floor(bgOpacity * 2.55).toString(16).padStart(2, '0')}`,
@@ -1919,14 +1972,14 @@ const App: React.FC = () => {
                   <div 
                     className={cn(
                       "bg-white/5 rounded-lg flex items-center justify-center border border-white/10 shrink-0",
-                      (notif.event === 'hint' && notif.finder?.toLowerCase() === currentPlayer?.toLowerCase()) && "bg-[#c36e7a]/10 border-[#c36e7a]/20"
+                      (notif.event === 'hint' && notif.finder?.toLowerCase() === (targetPlayer || currentPlayer)?.toLowerCase()) && "bg-[#c36e7a]/10 border-[#c36e7a]/20"
                     )}
                     style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
                   >
                     {notif.event === 'error' ? (
                       <AlertCircle style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-red-500" />
                     ) : notif.event === 'hint' ? (
-                      notif.finder?.toLowerCase() === currentPlayer?.toLowerCase() ? (
+                      notif.finder?.toLowerCase() === (targetPlayer || currentPlayer)?.toLowerCase() ? (
                         <MapPin style={{ width: `${avatarSize * 0.45}px`, height: `${avatarSize * 0.45}px` }} className="text-[#c36e7a] animate-bounce" />
                       ) : (
                         <Info style={{ width: `${avatarSize * 0.4}px`, height: `${avatarSize * 0.4}px` }} className="text-sky-400" />
@@ -1960,7 +2013,11 @@ const App: React.FC = () => {
                                   : notif.event === 'collect'
                                     ? 'Item Collection'
                                     : ((notif.event === 'receive' || notif.event === 'send') 
-                                      ? (notif.from === notif.to ? 'Item Found' : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item')) 
+                                      ? (notif.from === notif.to 
+                                          ? 'Item Found' 
+                                          : (targetPlayer 
+                                              ? (notif.to?.toLowerCase() === targetPlayer.toLowerCase() ? 'Incoming Item' : 'Sent Item')
+                                              : (notif.to === notif.my_alias ? 'Incoming Item' : 'Sent Item'))) 
                                       : 'System Message')}
                         </span>
                       )}
